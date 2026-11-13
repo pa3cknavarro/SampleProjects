@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/.vs/
+**/node_modules/
+*.user
+*.suo
+.DS_Store
+**/wwwroot/lib/
