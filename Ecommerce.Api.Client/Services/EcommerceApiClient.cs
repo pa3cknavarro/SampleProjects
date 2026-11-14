@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using Ecommerce.Api.Client.Models;
 
 namespace Ecommerce.Api.Client.Services;
@@ -6,59 +7,112 @@ namespace Ecommerce.Api.Client.Services;
 public class EcommerceApiClient
 {
     private readonly HttpClient _http;
-
-    public EcommerceApiClient(HttpClient http) => _http = http;
-
-    public async Task<ApiResult<PaginatedResponse<ProvinceResponse>>> GetProvincesAsync(
-        int page = 1, int pageSize = 10, string? search = null, CancellationToken ct = default)
+    private readonly EcommerceApiOptions _options;
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        var url = $"api/v1/provinces?page={page}&pageSize={pageSize}";
-        if (!string.IsNullOrWhiteSpace(search)) url += $"&search={Uri.EscapeDataString(search)}";
-        return await SendAsync<PaginatedResponse<ProvinceResponse>>(HttpMethod.Get, url, null, ct);
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    public EcommerceApiClient(HttpClient http, EcommerceApiOptions options)
+    {
+        _http = http;
+        _options = options;
+
+        if (_http.BaseAddress is null && !string.IsNullOrWhiteSpace(_options.BaseUrl))
+            _http.BaseAddress = new Uri(_options.BaseUrl.TrimEnd('/') + "/");
+
+        if (!_http.DefaultRequestHeaders.Contains("X-Api-Key"))
+            _http.DefaultRequestHeaders.Add("X-Api-Key", _options.ApiKey);
     }
 
-    public async Task<ApiResult<ProvinceResponse>> CreateProvinceAsync(
+    public Task<ApiResult<PaginatedResponse<ProvinceResponse>>> GetProvincesAsync(
+        ListQuery? query = null, CancellationToken ct = default)
+        => GetAsync<PaginatedResponse<ProvinceResponse>>(BuildListPath("provinces", query), ct);
+
+    public Task<ApiResult<ProvinceResponse>> GetProvinceAsync(Guid provinceId, CancellationToken ct = default)
+        => GetAsync<ProvinceResponse>($"api/{_options.ApiVersion}/provinces/{provinceId}", ct);
+
+    public Task<ApiResult<ProvinceResponse>> CreateProvinceAsync(
         CreateProvinceRequest request, string? idempotencyKey = null, CancellationToken ct = default)
+        => PostAsync<ProvinceResponse>($"api/{_options.ApiVersion}/provinces", request, idempotencyKey, ct);
+
+    public Task<ApiResult<object?>> DeleteProvinceAsync(Guid provinceId, CancellationToken ct = default)
+        => SendAsync<object?>(HttpMethod.Delete, $"api/{_options.ApiVersion}/provinces/{provinceId}", null, ct);
+
+    public Task<ApiResult<PaginatedResponse<CityResponse>>> GetCitiesAsync(
+        ListQuery? query = null, Guid? provinceId = null, CancellationToken ct = default)
     {
-        return await SendAsync<ProvinceResponse>(HttpMethod.Post, "api/v1/provinces", request, ct, idempotencyKey);
+        var extra = provinceId is null
+            ? Array.Empty<(string, string)>()
+            : new[] { ("provinceId", provinceId.Value.ToString()) };
+        return GetAsync<PaginatedResponse<CityResponse>>(BuildListPath("cities", query, extra), ct);
     }
 
-    public async Task<ApiResult<PaginatedResponse<CityResponse>>> GetCitiesAsync(
-        int page = 1, int pageSize = 10, Guid? provinceId = null, CancellationToken ct = default)
+    public Task<ApiResult<CityResponse>> CreateCityAsync(
+        CreateCityRequest request, string? idempotencyKey = null, CancellationToken ct = default)
+        => PostAsync<CityResponse>($"api/{_options.ApiVersion}/cities", request, idempotencyKey, ct);
+
+    public Task<ApiResult<PaginatedResponse<BarangayResponse>>> GetBarangaysAsync(
+        ListQuery? query = null, Guid? provinceId = null, Guid? cityId = null, CancellationToken ct = default)
     {
-        var url = $"api/v1/cities?page={page}&pageSize={pageSize}";
-        if (provinceId.HasValue) url += $"&provinceId={provinceId}";
-        return await SendAsync<PaginatedResponse<CityResponse>>(HttpMethod.Get, url, null, ct);
+        var extra = new List<(string, string)>();
+        if (provinceId.HasValue) extra.Add(("provinceId", provinceId.Value.ToString()));
+        if (cityId.HasValue) extra.Add(("cityId", cityId.Value.ToString()));
+        return GetAsync<PaginatedResponse<BarangayResponse>>(BuildListPath("barangays", query, extra.ToArray()), ct);
     }
 
-    public async Task<ApiResult<PaginatedResponse<BarangayResponse>>> GetBarangaysAsync(
-        int page = 1, int pageSize = 10, Guid? provinceId = null, Guid? cityId = null, CancellationToken ct = default)
+    public Task<ApiResult<BarangayResponse>> CreateBarangayAsync(
+        CreateBarangayRequest request, string? idempotencyKey = null, CancellationToken ct = default)
+        => PostAsync<BarangayResponse>($"api/{_options.ApiVersion}/barangays", request, idempotencyKey, ct);
+
+    private static string BuildListPath(string resource, ListQuery? query, params (string Key, string Value)[] extra)
     {
-        var url = $"api/v1/barangays?page={page}&pageSize={pageSize}";
-        if (provinceId.HasValue) url += $"&provinceId={provinceId}";
-        if (cityId.HasValue) url += $"&cityId={cityId}";
-        return await SendAsync<PaginatedResponse<BarangayResponse>>(HttpMethod.Get, url, null, ct);
+        var q = query ?? new ListQuery();
+        var parts = new List<string> { $"page={q.Page}", $"pageSize={q.PageSize}" };
+        if (!string.IsNullOrWhiteSpace(q.Search)) parts.Add($"search={Uri.EscapeDataString(q.Search)}");
+        if (!string.IsNullOrWhiteSpace(q.SortBy)) parts.Add($"sortBy={Uri.EscapeDataString(q.SortBy)}");
+        if (!string.IsNullOrWhiteSpace(q.SortOrder)) parts.Add($"sortOrder={Uri.EscapeDataString(q.SortOrder)}");
+        foreach (var (key, value) in extra)
+            parts.Add($"{key}={Uri.EscapeDataString(value)}");
+        return $"api/v1/{resource}?{string.Join("&", parts)}";
     }
+
+    private Task<ApiResult<T>> GetAsync<T>(string path, CancellationToken ct)
+        => SendAsync<T>(HttpMethod.Get, path, null, ct);
+
+    private Task<ApiResult<T>> PostAsync<T>(string path, object body, string? idempotencyKey, CancellationToken ct)
+        => SendAsync<T>(HttpMethod.Post, path, body, ct, idempotencyKey);
 
     private async Task<ApiResult<T>> SendAsync<T>(
-        HttpMethod method, string url, object? body, CancellationToken ct, string? idempotencyKey = null)
+        HttpMethod method, string path, object? body, CancellationToken ct, string? idempotencyKey = null)
     {
-        using var request = new HttpRequestMessage(method, url);
+        using var request = new HttpRequestMessage(method, path);
         if (body is not null)
-            request.Content = JsonContent.Create(body);
+            request.Content = JsonContent.Create(body, options: JsonOptions);
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
             request.Headers.TryAddWithoutValidation("X-Idempotency-Key", idempotencyKey);
 
-        using var response = await _http.SendAsync(request, ct);
-        if (response.IsSuccessStatusCode)
+        using var res = await _http.SendAsync(request, ct);
+        if (res.IsSuccessStatusCode)
         {
-            if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
-                return ApiResult<T>.Success(default!, (int)response.StatusCode);
-            var data = await response.Content.ReadFromJsonAsync<T>(cancellationToken: ct);
-            return ApiResult<T>.Success(data!, (int)response.StatusCode);
+            if (res.StatusCode == System.Net.HttpStatusCode.NoContent)
+                return ApiResult<T>.Success((int)res.StatusCode, default!);
+            var data = await res.Content.ReadFromJsonAsync<T>(JsonOptions, ct);
+            return ApiResult<T>.Success((int)res.StatusCode, data!);
         }
 
-        var errorText = await response.Content.ReadAsStringAsync(ct);
-        return ApiResult<T>.Failure((int)response.StatusCode, errorText);
+        ErrorEnvelope? error = null;
+        try
+        {
+            error = await res.Content.ReadFromJsonAsync<ErrorEnvelope>(JsonOptions, ct);
+        }
+        catch
+        {
+            var text = await res.Content.ReadAsStringAsync(ct);
+            error = new ErrorEnvelope { Status = (int)res.StatusCode, Title = res.ReasonPhrase ?? "Error", Detail = text };
+        }
+
+        return ApiResult<T>.Failure((int)res.StatusCode, error);
     }
 }
