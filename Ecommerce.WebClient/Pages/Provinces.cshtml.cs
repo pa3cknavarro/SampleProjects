@@ -15,10 +15,12 @@ public class ProvincesModel : PageModel
 
     public async Task OnGetAsync()
     {
-        var result = await _client.GetProvincesAsync(page: 1, pageSize: 50);
+        var result = await _client.GetProvincesAsync(new ListQuery { Page = 1, PageSize = 50 });
         if (result.IsSuccess && result.Data is not null)
             Items = result.Data.Items;
         else
-            Error = result.Error ?? $"Request failed ({result.StatusCode})";
+            Error = result.Error?.Detail
+                ?? result.Error?.Title
+                ?? $"Request failed ({result.StatusCode})";
     }
 }
