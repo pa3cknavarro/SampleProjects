@@ -34,8 +34,11 @@ Built with **vertical slices** and **Carter** modules instead of classic control
 - **OrderDetails** also adjust parent **Order** SubTotal/GrandTotal.
 
 ## Data store
-EF Core **InMemory** provider for demos. Swap `UseInMemoryDatabase` for SQL Server/PostgreSQL in production.
-Idempotency store is also in-process memory (use Redis in production).
+EF Core uses PostgreSQL through Npgsql. Configure `ConnectionStrings__EcommerceDb`; Development falls back to `Host=localhost;Database=ecommerce` when it is absent, while non-Development environments require an explicit connection string. Pending EF Core migrations are applied at startup. The former SQLite database, if present, is not imported automatically and must be transferred before switching an installation. Data Protection keys are stored under the host's local application data directory by default and can be relocated with `DataProtection__KeyRingPath`; multi-instance deployments must share a persistent key ring to preserve encrypted MFA secrets and cookie validation.
+
+Restore the pinned EF CLI with `dotnet tool restore`. Create future schema changes with `dotnet ef migrations add <Name> --project Ecommerce.Api --output-dir Data/Migrations --context AppDbContext`. Set `ConnectionStrings__EcommerceDb` when applying migrations outside the application startup.
+
+Registration and password-recovery challenges and idempotency records are still process-local. Notifications and MFA recovery codes are persisted in PostgreSQL.
 
 ## Run
 ```bash

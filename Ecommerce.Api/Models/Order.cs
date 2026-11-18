@@ -27,6 +27,10 @@ public class Order
     // Foreign key to Customer. Required Guid, so every order points at a customer id.
     public Guid CustomerId { get; set; }
 
+    public Guid? ShippingProvinceId { get; set; }
+
+    public Province? ShippingProvince { get; set; }
+
     // Enum property. The initializer sets a new order to Pending, which is the value 0.
     public OrderStatus OrderStatus { get; set; } = OrderStatus.Pending;
 

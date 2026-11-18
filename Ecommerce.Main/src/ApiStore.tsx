@@ -4,6 +4,9 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 // Imports structured API errors and typed product models from the centralized client.
 import { EcommerceApiError, Product, ecommerceApi } from './api'
+import { useAuth } from './lib/AuthContext'
+import CustomerMenu from '../components/store/CustomerMenu'
+import NotificationBell from '../components/store/NotificationBell'
 // Imports Zod so the checkout payload is validated before transmission.
 import { z } from 'zod'
 
@@ -19,6 +22,7 @@ interface CartItem {
 const orderSchema = z.object({
   // Requires the demo customer identifier to be a UUID.
   customerId: z.string().uuid(),
+  shippingProvinceId: z.string().uuid().optional(),
   // Requires freight to be present and nonnegative.
   orderFreight: z.number().nonnegative(),
   // Requires the order discount to be present and nonnegative.
@@ -48,21 +52,9 @@ const orderSchema = z.object({
   })).min(1),
 })
 
-// Identifies the seed customer used by this demo checkout.
-const DEMO_CUSTOMER_ID = 'ffffffff-ffff-ffff-ffff-fffffffffffe'
-// Identifies the seed bottle unit of measure used by demo order lines.
-const DEMO_UOM_ID = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
-
-// Provides demo prices until seeded unit-price API contracts are integrated.
-const prices: Record<string, number> = {
-  // Prices the first seeded product.
-  '10000000-0000-0000-0000-000000000001': 5.99,
-  // Prices the second seeded product.
-  '10000000-0000-0000-0000-000000000002': 3.49,
-}
-
 // Defines the API-backed storefront component and its feature interactions.
 export default function App() {
+  const { user, logout } = useAuth()
   // Tracks the currently selected page tab.
   const [tab, setTab] = useState<'shop' | 'cart' | 'locations'>('shop')
   // Tracks the product search field value.
@@ -70,12 +62,8 @@ export default function App() {
   // Tracks user-visible API or validation errors.
   const [error, setError] = useState('')
   // Loads the cart from browser storage and tracks subsequent cart changes.
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    // Reads the demo cart saved by a previous visit.
-    const saved = localStorage.getItem('ecommerce-cart')
-    // Restores valid saved JSON or starts with an empty cart.
-    return saved ? JSON.parse(saved) : []
-  })
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [cartUserId, setCartUserId] = useState<string | null>(null)
   // Tracks the selected province identifier.
   const [provinceId, setProvinceId] = useState('')
   // Tracks the selected city identifier.
@@ -83,12 +71,22 @@ export default function App() {
   // Tracks a successful checkout notification.
   const [orderMessage, setOrderMessage] = useState('')
 
+  const profileQuery = useQuery({
+    queryKey: ['customer-profile', user?.customerId],
+    queryFn: ecommerceApi.getCustomerProfile,
+    enabled: Boolean(user?.customerId),
+  })
   // Caches product search results and exposes loading and error states.
   const productsQuery = useQuery({
-    // Separates cache entries for each search term.
-    queryKey: ['products', search],
+    // Separates cache entries for search and selected delivery province.
+    queryKey: ['products', search, provinceId],
     // Requests products while forwarding React Query cancellation.
-    queryFn: ({ signal }) => ecommerceApi.getProducts(search, undefined, 1, signal),
+    queryFn: ({ signal }) => ecommerceApi.getProducts(search, undefined, 1, signal, provinceId || undefined),
+  })
+  const ordersQuery = useQuery({
+    queryKey: ['orders', user?.customerId],
+    queryFn: () => ecommerceApi.getOrders(),
+    enabled: Boolean(user?.customerId),
   })
   // Caches the province list shared by the location selector.
   const provincesQuery = useQuery({
@@ -127,14 +125,26 @@ export default function App() {
 
   // Persists browser cart changes after every quantity or item update.
   useEffect(() => {
-    // Writes the cart to localStorage for the next page load.
-    localStorage.setItem('ecommerce-cart', JSON.stringify(cart))
-  }, [cart])
+    if (!user?.id) return
+    try {
+      const saved = localStorage.getItem(`ecommerce-cart:${user.id}`)
+      setCart(saved ? JSON.parse(saved) : [])
+    } catch {
+      setCart([])
+    }
+    setCartUserId(user.id)
+  }, [user?.id])
+
+  useEffect(() => {
+    if (user?.id && cartUserId === user.id) {
+      localStorage.setItem(`ecommerce-cart:${user.id}`, JSON.stringify(cart))
+    }
+  }, [cart, cartUserId, user?.id])
 
   // Calculates the cart total whenever cart contents change.
   const cartTotal = useMemo(
-    // Sums each line quantity by the demo price map.
-    () => cart.reduce((sum, item) => sum + (prices[item.product.productId] ?? 0) * item.quantity, 0),
+    // Sums each line by its API-configured price.
+    () => cart.reduce((sum, item) => sum + (item.product.defaultPrice?.price ?? 0) * item.quantity, 0),
     // Recalculates only when the cart changes.
     [cart],
   )
@@ -183,11 +193,20 @@ export default function App() {
     setError('')
     // Clears stale success text before submission.
     setOrderMessage('')
+    if (!user?.customerId) {
+      setError('This account is not linked to a customer profile and cannot place orders.')
+      return
+    }
+    if (cart.some(item => !item.product.defaultPrice)) {
+      setError('A product in your cart does not have a configured price.')
+      return
+    }
     try {
       // Converts demo cart state into the Zod-validated API payload.
       const order = orderSchema.parse({
         // Supplies the seeded demo customer.
-        customerId: DEMO_CUSTOMER_ID,
+        customerId: user.customerId,
+        shippingProvinceId: provinceId || profileQuery.data?.provinceId || undefined,
         // Starts freight at zero because no backend shipping calculation is integrated.
         orderFreight: 0,
         // Starts the order discount at zero.
@@ -195,19 +214,19 @@ export default function App() {
         // Records the checkout source in the order comment.
         comment: 'Created from Ecommerce.Main',
         // Supplies the demo creator audit value.
-        createdBy: 'demo',
+        createdBy: user.username,
         // Supplies the demo modifier audit value.
-        modifiedBy: 'demo',
+        modifiedBy: user.username,
         // Maps cart rows into backend order-detail fields.
         orderDetail: cart.map(item => ({
           // Sends the selected product identifier.
           productId: item.product.productId,
-          // Sends the demo bottle unit-of-measure identifier.
-          uomId: DEMO_UOM_ID,
+          // Sends the unit selected by the API's default configured price.
+          uomId: item.product.defaultPrice!.uomId,
           // Sends the cart quantity.
           quantity: item.quantity,
-          // Sends the demo unit price visible in the UI.
-          unitPrice: prices[item.product.productId] ?? 0,
+          // Sends the displayed value; the API recalculates from its price table.
+          unitPrice: item.product.defaultPrice!.price,
           // Starts line freight at zero.
           itemFreight: 0,
           // Starts line discount at zero.
@@ -238,6 +257,14 @@ export default function App() {
         <h1>Ecommerce Main</h1>
         {/* Allows switching among shop, cart, and location views. */}
         <nav>
+          <NotificationBell />
+          <CustomerMenu
+            user={user}
+            customer={profileQuery.data}
+            orders={ordersQuery.data?.items ?? []}
+            onCustomerUpdate={updated => queryClient.setQueryData(['customer-profile', user?.customerId], updated)}
+            onLogout={logout}
+          />
           {/* Switches to the shop view and marks it active. */}
           <button className={tab === 'shop' ? 'active' : ''} onClick={() => setTab('shop')}>Shop</button>
           {/* Switches to the cart view and shows its item count. */}
@@ -283,11 +310,11 @@ export default function App() {
                   <h2>{product.productName}</h2>
                   {/* Shows the product description. */}
                   <p>{product.productDescription}</p>
-                  {/* Shows the demo price. */}
-                  <strong>${(prices[product.productId] ?? 0).toFixed(2)}</strong>
+                  {/* Shows the configured price and unit or explains missing configuration. */}
+                  <strong>{product.defaultPrice ? `$${product.defaultPrice.price.toFixed(2)} / ${product.defaultPrice.unit}` : 'Price not set'}</strong>
                   {/* Adds or disables cart action based on inventory state. */}
-                  <button disabled={!product.inStock} onClick={() => addToCart(product)}>
-                    {product.inStock ? 'Add to cart' : 'Out of stock'}
+                  <button disabled={!product.inStock || !product.defaultPrice} onClick={() => addToCart(product)}>
+                    {!product.inStock ? 'Out of stock' : product.defaultPrice ? 'Add to cart' : 'Unavailable'}
                   </button>
                 </article>
               ))}
@@ -312,10 +339,10 @@ export default function App() {
                 {cart.map(item => (
                   // Identifies each row by product GUID.
                   <article className="cart-row" key={item.product.productId}>
-                    {/* Shows product name and demo unit price. */}
+                    {/* Shows product name and configured API unit price. */}
                     <div>
                       <strong>{item.product.productName}</strong>
-                      <small>${(prices[item.product.productId] ?? 0).toFixed(2)} each</small>
+                      <small>${(item.product.defaultPrice?.price ?? 0).toFixed(2)} per {item.product.defaultPrice?.unit ?? 'unit'}</small>
                     </div>
                     {/* Allows quantity changes or removal at zero. */}
                     <input

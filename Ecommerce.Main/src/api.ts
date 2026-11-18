@@ -32,6 +32,7 @@ export interface Product {
   categoryId: string;
   // Indicates whether the API allows the product to be added.
   inStock: boolean;
+  defaultPrice?: { uomId: string; unit: string; price: number } | null;
 }
 
 // Models a province returned by the location API.
@@ -66,6 +67,47 @@ export interface Barangay {
   barangayName: string;
 }
 
+export interface AuthUser {
+  id: string;
+  companyId: string;
+  customerId: string | null;
+  username: string;
+  email: string;
+  role: 'User' | 'Staff' | 'Admin';
+  isActive: boolean;
+}
+
+export interface CustomerProfile {
+  customerId: string;
+  companyName: string;
+  contactPerson: string;
+  emailAddress: string;
+  contactNumber: string;
+  customerClass?: { className: string };
+  province?: { provinceName: string } | null;
+  city?: { cityName: string } | null;
+  barangay?: { barangayName: string } | null;
+  address: string;
+  provinceId?: string | null;
+}
+
+export interface Order {
+  orderId: string;
+  orderDate: string;
+  customerId: string;
+  shippingProvinceId: string | null;
+  orderStatus: number;
+  grandTotal: number;
+  orderDetail: Array<{
+    productId: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    uomId: string;
+    unit: string;
+  }>;
+}
+
 // Normalizes backend and network error information for React UI consumers.
 export interface ApiError {
   // Stores the HTTP or synthetic network status.
@@ -74,6 +116,7 @@ export interface ApiError {
   title: string;
   // Stores the safe error detail shown to users.
   detail: string;
+  requiresTwoFactor?: boolean;
 }
 
 // Converts an API error envelope into a normal JavaScript Error.
@@ -87,6 +130,35 @@ export class EcommerceApiError extends Error {
 
 // Uses a same-origin proxy in development so the demo API key is never sent in browser JavaScript.
 const API_BASE_URL = (import.meta.env.VITE_ECOMMERCE_API_URL ?? '/api/v1').replace(/\/$/, '');
+const ADMIN_ENTITY_ROUTES: Record<string, { route: string; id: string; canCreate?: boolean; canDelete?: boolean }> = {
+  Customer: { route: 'customers', id: 'customerId' },
+  CustomerClass: { route: 'customer-classes', id: 'customerClassId' },
+  Product: { route: 'products', id: 'productId' },
+  UnitPrice: { route: 'unit-prices', id: 'unitPriceId' },
+  AreaAvailable: { route: 'areas-available', id: 'areaAvailableId' },
+  Category: { route: 'categories', id: 'categoryId' },
+  UnitOfMeasure: { route: 'unit-of-measures', id: 'id' },
+  Order: { route: 'orders', id: 'orderId', canCreate: false, canDelete: false },
+  Province: { route: 'provinces', id: 'provinceId' },
+  City: { route: 'cities', id: 'cityId' },
+  Barangay: { route: 'barangays', id: 'barangayId' },
+  AppUser: { route: 'users', id: 'id' },
+};
+
+function getAdminEntityConfig(entity: string) {
+  const config = ADMIN_ENTITY_ROUTES[entity];
+  if (!config) throw new Error(`Unsupported admin entity: ${entity}`);
+  return config;
+}
+
+function getAdminEntityId(entity: string, row: Record<string, unknown>) {
+  if (entity === 'City') return `${row.provinceId}/${row.cityId}`;
+  if (entity === 'Barangay') return `${row.provinceId}/${row.cityId}/${row.barangayId}`;
+  if (entity === 'UnitPrice') return `${row.productId}/${row.uomId}/${row.unitPriceId}`;
+  const id = row[getAdminEntityConfig(entity).id];
+  if (typeof id !== 'string') throw new Error(`Missing identifier for admin entity: ${entity}`);
+  return id;
+}
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000): Promise<T> {
   // Combines caller cancellation with a bounded request timeout.
@@ -174,18 +246,127 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000):
 
 // Defines all feature API operations behind one exported service object.
 export const ecommerceApi = {
+  auth: {
+    me: () => request<AuthUser>(`${API_BASE_URL}/auth/me`),
+    login: (credentials: { username: string; password: string; rememberMe?: boolean; twoFactorCode?: string }) =>
+      request<AuthUser>(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      }),
+    register: (credentials: { email: string; password: string; companyName: string }) =>
+      request<{ message: string; verificationCode?: string }>(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      }),
+    verifyEmail: (verification: { email: string; code: string }) =>
+      request<AuthUser>(`${API_BASE_URL}/auth/verify-email`, {
+        method: 'POST',
+        body: JSON.stringify(verification),
+      }),
+    resendVerification: (email: string) =>
+      request<{ message: string; verificationCode?: string }>(`${API_BASE_URL}/auth/resend-verification`, {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+    forgotPassword: (email: string) =>
+      request<{ message: string; resetUrl?: string }>(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+    resetPassword: (credentials: { token: string; newPassword: string }) =>
+      request<void>(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      }),
+    changePassword: (credentials: { currentPassword: string; newPassword: string }) =>
+      request<void>(`${API_BASE_URL}/auth/change-password`, {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      }),
+    logout: () => request<void>(`${API_BASE_URL}/auth/logout`, { method: 'POST' }),
+    mfaStatus: () => request<{ enabled: boolean }>(`${API_BASE_URL}/auth/mfa`),
+    setupMfa: (currentPassword: string) => request<{ secret: string; provisioningUri: string }>(`${API_BASE_URL}/auth/mfa/setup`, {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword }),
+    }),
+    enableMfa: (code: string) => request<{ enabled: boolean; recoveryCodes: string[] }>(`${API_BASE_URL}/auth/mfa/enable`, {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+    disableMfa: (code: string) => request<{ enabled: boolean }>(`${API_BASE_URL}/auth/mfa/disable`, {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+  },
+  notifications: {
+    list: () => request<{
+      items: Array<{ notificationId: string; title: string; message: string; createdOn: string; readOn: string | null }>;
+      unreadCount: number;
+    }>(`${API_BASE_URL}/notifications?page=1&pageSize=50`),
+    markRead: (notificationId: string) => request<void>(`${API_BASE_URL}/notifications/${notificationId}/read`, { method: 'POST' }),
+    markAllRead: () => request<void>(`${API_BASE_URL}/notifications/read-all`, { method: 'POST' }),
+  },
+  getCustomerProfile: () => request<CustomerProfile>(`${API_BASE_URL}/customers/me`),
+  updateCustomerProfile: (profile: { emailAddress: string; contactNumber: string }) =>
+    request<CustomerProfile>(`${API_BASE_URL}/customers/me`, {
+      method: 'PUT',
+      body: JSON.stringify(profile),
+    }),
+  getOrders: (pageSize = 100) =>
+    request<PaginatedResponse<Order>>(`${API_BASE_URL}/orders?page=1&pageSize=${pageSize}`),
+  getOrder: (orderId: string) => request<Order>(`${API_BASE_URL}/orders/${orderId}`),
+  admin: {
+    list: async (entity: string, pageSize = 100) => {
+      const { route } = getAdminEntityConfig(entity);
+      const batchSize = Math.min(Math.max(pageSize, 1), 100);
+      const first = await request<PaginatedResponse<Record<string, unknown>>>(
+        `${API_BASE_URL}/${route}?page=1&pageSize=${batchSize}`,
+      );
+      const items = [...first.items];
+      for (let page = 2; page <= first.totalPages; page += 1) {
+        const result = await request<PaginatedResponse<Record<string, unknown>>>(
+          `${API_BASE_URL}/${route}?page=${page}&pageSize=${batchSize}`,
+        );
+        items.push(...result.items);
+      }
+      return { ...first, items };
+    },
+    create: (entity: string, payload: Record<string, unknown>) => {
+      const { route, canCreate } = getAdminEntityConfig(entity);
+      if (canCreate === false) throw new Error(`${entity} records cannot be created here.`);
+      return request<Record<string, unknown>>(`${API_BASE_URL}/${route}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+    update: (entity: string, row: Record<string, unknown>, payload: Record<string, unknown>) => {
+      const { route } = getAdminEntityConfig(entity);
+      const id = getAdminEntityId(entity, row);
+      return request<Record<string, unknown>>(`${API_BASE_URL}/${route}/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    },
+    delete: (entity: string, row: Record<string, unknown>) => {
+      const { route, canDelete } = getAdminEntityConfig(entity);
+      if (canDelete === false) throw new Error(`${entity} records cannot be deleted here.`);
+      const id = getAdminEntityId(entity, row);
+      return request<void>(`${API_BASE_URL}/${route}/${id}`, { method: 'DELETE' });
+    },
+  },
   // Retrieves categories with the backend's default pagination contract.
   getCategories: (pageSize = 100) =>
     // Builds the versioned category route and asks for the requested page size.
     request<PaginatedResponse<Category>>(`${API_BASE_URL}/categories?page=1&pageSize=${pageSize}`),
   // Retrieves products with optional search, category, page, and cancellation inputs.
-  getProducts: (search = '', categoryId?: string, page = 1, signal?: AbortSignal) => {
+  getProducts: (search = '', categoryId?: string, page = 1, signal?: AbortSignal, provinceId?: string) => {
     // Creates URL parameters without manually concatenating unescaped values.
     const params = new URLSearchParams({ page: String(page), pageSize: '12' });
     // Adds search only when the user entered a nonempty term.
     if (search) params.set('search', search);
     // Adds a category filter only when the category identifier is present.
     if (categoryId) params.set('categoryId', categoryId);
+    if (provinceId) params.set('provinceId', provinceId);
     // Sends the versioned product request and forwards cancellation.
     return request<PaginatedResponse<Product>>(`${API_BASE_URL}/products?${params}`, { signal });
   },

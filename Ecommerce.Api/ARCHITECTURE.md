@@ -11,7 +11,9 @@ Vertical Slice Architecture with Carter modules. Each feature owns its endpoints
 - **Idempotency**: `X-Idempotency-Key` on write methods
 - **Errors**: `ErrorEnvelope` JSON for failures
 - **HATEOAS**: links on selected resources
-- **Data**: EF Core InMemory (`AppDbContext`); swap provider for production
+- **Data**: EF Core PostgreSQL database (`AppDbContext`); configure `ConnectionStrings__EcommerceDb`
+- **User sessions**: HttpOnly cookies; TOTP secrets are Data Protection encrypted, recovery codes are stored as hashes
+- **Notifications**: user-scoped rows persisted in PostgreSQL
 
 ## Run
 ```bash

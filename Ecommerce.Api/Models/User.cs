@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 // Surrogate primary key named Id.
 [PrimaryKey(nameof(Id))]
-// An account that can own a cart. Password is stored on the entity as a plain string.
+// An account that can own a cart and authenticate to the API.
 public class User
 {
     // Marks Id as the key.
@@ -36,12 +36,21 @@ public class User
     // Login name. Non-nullable, default empty.
     public string Username { get; set; } = string.Empty;
 
-    // Password is required by the validation attribute.
-    [Required(ErrorMessage = "Password is required.")]
-    // UI caption.
-    [Display(Name = "Password")]
-    // Password text as stored by this demo. Non-nullable, default empty.
-    public string Password { get; set; } = string.Empty;
+    // Email is used for registration, verification, and password recovery.
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    // A one-way password hash; plaintext credentials are never persisted.
+    [Required]
+    public string PasswordHash { get; set; } = string.Empty;
+
+    // Optional customer account linked to this user.
+    public Guid? CustomerId { get; set; }
+
+    public bool MfaEnabled { get; set; }
+
+    public string? MfaSecretProtected { get; set; }
 
     // A role value is required.
     [Required(ErrorMessage = "Role is required.")]

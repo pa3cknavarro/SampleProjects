@@ -2,7 +2,7 @@ import React from "react";
 import { Home, ShoppingBag, ShieldCheck, LogOut } from "lucide-react";
 
 export default function MobileTabBar({ onCart, onAdmin, onLogout, cartCount = 0, isAdmin = false }) {
-  const Tab = ({ icon: Icon, label, onClick, badge }) => (
+  const Tab = ({ icon: Icon, label, onClick, badge = 0 }) => (
     <button onClick={onClick} className="flex flex-1 flex-col items-center gap-1 py-2.5 text-emerald-900/70">
       <span className="relative">
         <Icon className="h-5 w-5" />

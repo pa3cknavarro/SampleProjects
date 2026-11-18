@@ -10,3 +10,6 @@ Ecommerce.Main/vite.config.d.ts
 *.suo
 .DS_Store
 **/wwwroot/lib/
+*.db
+*.db-shm
+*.db-wal

@@ -1,77 +1,41 @@
-# Base44 Project
+# Ecommerce.Main
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
-
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+`Ecommerce.Main` is the React storefront and admin UI for `Ecommerce.Api`. The frontend uses Vite, TypeScript, TanStack Query, and a centralized HTTP client. User authentication is handled by the API using an HttpOnly cookie; the Vite development proxy adds the demo API key server-side.
 
 ## Prerequisites
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
+- Node.js and npm
+- .NET 8 SDK
 
-See the [Base44 CLI docs](https://docs.base44.com/developers/references/cli/get-started/overview) if you want to run Base44 commands directly.
+## Run locally
 
-## Run Locally
+Start the API from the repository root:
 
-Run the full local development environment from the project root:
-
-```bash
-base44 dev
+```powershell
+dotnet run --project Ecommerce.Api --urls http://127.0.0.1:5001
 ```
 
-`base44 dev` starts the local Base44 development backend and, when this app is configured for it, also starts the frontend dev server for you. Use the frontend URL printed by the command.
+In another terminal:
 
-For example, when the Base44 project config includes a `serveCommand`, `base44 dev` can launch the frontend too:
-
-```json5
-{
-  "site": {
-    "serveCommand": "npm run dev"
-  }
-}
-```
-
-In a Base44 project this lives in `base44/config.jsonc`.
-
-## Run Only The Frontend
-
-If you only want to work on the frontend against the hosted Base44 backend, run:
-
-```bash
+```powershell
+cd Ecommerce.Main
+npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite.
+Open the Vite URL, normally `http://localhost:5173`. The development proxy forwards `/api` requests to `http://127.0.0.1:5001`.
 
-## Use The Hosted Backend
+The Development API seed includes `demo` / `demo` for a customer and `admin` / `admin-local-only` for administrator access. These local-only credentials must be changed before deployment.
 
-For frontend-only development, create or update `.env.local` in the project root:
+## Build and checks
 
-```bash
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
+```powershell
+npm run typecheck
+npm run lint
+npm test
+npm run build
 ```
 
-`VITE_BASE44_APP_ID` identifies the Base44 app.
+## Configuration and limitations
 
-`VITE_BASE44_APP_BASE_URL` tells the Base44 Vite plugin where to send local `/api` requests. Point it at your deployed Base44 app URL when you want the local frontend to use the hosted backend.
-
-When you use `base44 dev`, the command injects the local Base44 values for you, so `.env.local` is mainly needed for frontend-only workflows.
-
-## Publish Your Changes
-
-After pushing your changes to git, open the Base44 dashboard and publish the app:
-
-```bash
-base44 dashboard open
-```
-
-## Docs & Support
-
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
-
-Base44 CLI command reference: [https://docs.base44.com/developers/references/cli/commands/introduction](https://docs.base44.com/developers/references/cli/commands/introduction)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+`VITE_ECOMMERCE_API_URL` defaults to `/api/v1`. Keep it same-origin in production and never put private credentials in Vite environment variables. The API uses PostgreSQL; set `ConnectionStrings__EcommerceDb` (Development falls back to `Host=localhost;Database=ecommerce`). Startup applies EF Core migrations. Share a persistent `DataProtection__KeyRingPath` between API instances. Existing SQLite databases are not imported automatically. Registration verification and password recovery require SMTP outside Development; their challenge tokens are currently held in process memory. Notifications are in-app only, and the cart remains browser-local.

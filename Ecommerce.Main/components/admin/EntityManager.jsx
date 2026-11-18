@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { ecommerceApi } from "@/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,36 +10,40 @@ import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 
 export default function EntityManager({ section, userRole }) {
   const { entity, title, columns, fields } = section;
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState(/** @type {Record<string, unknown>[]} */ ([]));
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({});
+  const [editing, setEditing] = useState(/** @type {Record<string, unknown> | null} */ (null));
+  const [form, setForm] = useState(/** @type {Record<string, unknown>} */ ({}));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [optionsCache, setOptionsCache] = useState({});
+  const [optionsCache, setOptionsCache] = useState(/** @type {Record<string, Record<string, unknown>[]>} */ ({}));
 
   const load = async () => {
     setLoading(true);
     try {
-      const all = await base44.entities[entity].list("-created_date", 200);
-      setRows(all);
+      const response = await ecommerceApi.admin.list(entity, 200);
+      setRows(response.items);
+      setError("");
     } catch (e) {
       setRows([]);
+      setError(e.message || "Could not load records.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const loadOptions = async () => {
-    const opts = {};
+    const opts = /** @type {Record<string, Record<string, unknown>[]>} */ ({});
     for (const f of fields) {
       if (f.optionsEntity) {
         try {
-          const recs = await base44.entities[f.optionsEntity.entity].list("-created_date", 500);
-          opts[f.key] = recs;
+          const response = await ecommerceApi.admin.list(f.optionsEntity.entity, 500);
+          opts[f.key] = response.items;
         } catch (e) {
           opts[f.key] = [];
+          setError(e.message || `Could not load ${f.label} options.`);
         }
       }
     }
@@ -52,12 +56,17 @@ export default function EntityManager({ section, userRole }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity]);
 
+  /** @param {Record<string, unknown> | null} row @returns {Record<string, unknown>} */
   const buildInitial = (row) => {
-    const init = {};
+    const init = /** @type {Record<string, unknown>} */ ({});
     fields.forEach((f) => {
       if (f.type === "checkbox") init[f.key] = row ? !!row[f.key] : false;
-      else if (f.type === "priceList") init[f.key] = row && row[f.key] ? row[f.key] : [];
-      else if (f.type === "multiselect") init[f.key] = row && row[f.key] ? row[f.key] : [];
+      else if (entity === "Order" && f.key === "orderStatus" && row) {
+        const status = row.orderStatus;
+        init[f.key] = typeof status === "number"
+          ? ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"][status] || "Pending"
+          : "Pending";
+      }
       else init[f.key] = row ? row[f.key] ?? "" : "";
     });
     return init;
@@ -91,29 +100,23 @@ export default function EntityManager({ section, userRole }) {
     const filtered = f.dependsOn
       ? recs.filter((r) => f.dependsOn.every((k) => !form[k] || r[k] === form[k]))
       : recs;
-    return filtered.map((r) => r[f.optionsEntity.labelKey]);
+    return filtered.map((row) => {
+      const value = row[f.optionsEntity.valueKey || f.optionsEntity.labelKey];
+      const label = row[f.optionsEntity.labelKey];
+      return {
+        value: typeof value === "string" || typeof value === "number" ? value : "",
+        label: String(label ?? ""),
+      };
+    });
   };
 
-  const updatePriceRow = (key, idx, field, val) =>
-    setForm((prev) => {
-      const arr = [...(prev[key] || [])];
-      arr[idx] = { ...arr[idx], [field]: val };
-      return { ...prev, [key]: arr };
-    });
-  const addPriceRow = (key) =>
-    setForm((prev) => ({ ...prev, [key]: [...(prev[key] || []), { unit: "", price: 0 }] }));
-  const removePriceRow = (key, idx) =>
-    setForm((prev) => ({ ...prev, [key]: (prev[key] || []).filter((_, i) => i !== idx) }));
-  const toggleMulti = (key, opt, checked) =>
-    setForm((prev) => {
-      const arr = prev[key] || [];
-      return { ...prev, [key]: checked ? [...arr, opt] : arr.filter((x) => x !== opt) };
-    });
+  const fieldValue = (value) =>
+    typeof value === "string" || typeof value === "number" ? value : "";
 
   const save = async () => {
     setError("");
     for (const f of fields) {
-      if (f.required && f.type !== "checkbox" && f.type !== "priceList" && f.type !== "multiselect" && !form[f.key]) {
+      if (f.required && f.type !== "checkbox" && !form[f.key]) {
         setError(`${f.label} is required`);
         return;
       }
@@ -124,20 +127,22 @@ export default function EntityManager({ section, userRole }) {
       setError("Passwords do not match");
       return;
     }
-    const payload = {};
+    if (entity === "AppUser" && !editing && !form.password) {
+      setError("Password is required for a new user.");
+      return;
+    }
+    const payload = /** @type {Record<string, unknown>} */ ({});
     fields.forEach((f) => {
       if (f.submit === false) return;
       if (f.type === "checkbox") payload[f.key] = !!form[f.key];
-      else if (f.type === "priceList") payload[f.key] = (form[f.key] || []).filter((r) => r.unit);
-      else if (f.type === "multiselect") payload[f.key] = form[f.key] || [];
       else if (form[f.key] !== "" && form[f.key] !== null && form[f.key] !== undefined) payload[f.key] = form[f.key];
     });
     setSaving(true);
     try {
       if (editing) {
-        await base44.entities[entity].update(editing.id, payload);
+        await ecommerceApi.admin.update(entity, editing, payload);
       } else {
-        await base44.entities[entity].create(payload);
+        await ecommerceApi.admin.create(entity, payload);
       }
       setDialogOpen(false);
       await load();
@@ -151,24 +156,35 @@ export default function EntityManager({ section, userRole }) {
   const remove = async (row) => {
     if (!window.confirm("Delete this record?")) return;
     try {
-      await base44.entities[entity].delete(row.id);
-      setRows((r) => r.filter((x) => x.id !== row.id));
+      await ecommerceApi.admin.delete(entity, row);
+      await load();
     } catch (e) {
-      alert(e.message || "Could not delete");
+      setError(e.message || "Could not delete");
     }
+  };
+
+  const rowKey = (row) => {
+    if (entity === "City") return `${row.provinceId}:${row.cityId}`;
+    if (entity === "Barangay") return `${row.provinceId}:${row.cityId}:${row.barangayId}`;
+    return row[{
+      Customer: "customerId", CustomerClass: "customerClassId", Product: "productId",
+      Category: "categoryId", UnitOfMeasure: "id", Order: "orderId",
+      Province: "provinceId", AppUser: "id", UnitPrice: "unitPriceId",
+      AreaAvailable: "areaAvailableId",
+    }[entity]] || JSON.stringify(row);
   };
 
   const q = search.trim().toLowerCase();
   const filtered = q
     ? rows.filter((r) => columns.some((c) => String(r[c.key] ?? "").toLowerCase().includes(q)))
     : rows;
-  const canDelete = userRole !== "Agent";
+  const canDelete = userRole === "Admin" && !section.readOnly;
 
   const selectCls =
     "flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring";
 
   const inputType = (f) =>
-    f.type === "password" ? "password" : f.type === "number" ? "number" : f.type === "date" ? "date" : "text";
+    ["password", "email", "number", "date"].includes(f.type) ? f.type : "text";
 
   return (
     <div>
@@ -184,15 +200,16 @@ export default function EntityManager({ section, userRole }) {
             onChange={(e) => setSearch(e.target.value)}
             className="sm:max-w-sm"
           />
-          <button
+          {!section.readOnly && section.allowCreate !== false && <button
             onClick={openAdd}
             className="sm:ml-auto inline-flex items-center gap-1.5 rounded-full bg-emerald-900 px-4 py-2.5 text-xs font-medium text-emerald-50 transition hover:bg-emerald-800"
           >
             <Plus className="h-4 w-4" /> Add
-          </button>
+          </button>}
         </div>
       </div>
 
+      {error && <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive" role="alert">{error}</div>}
       {loading ? (
         <p className="py-10 text-center text-sm text-emerald-900/40">Loading…</p>
       ) : rows.length === 0 ? (
@@ -210,21 +227,21 @@ export default function EntityManager({ section, userRole }) {
             </thead>
             <tbody>
               {filtered.map((row) => (
-                <tr key={row.id} className="border-b border-emerald-900/5 last:border-0">
+                <tr key={rowKey(row)} className="border-b border-emerald-900/5 last:border-0">
                   {columns.map((c) => (
                     <td key={c.key} className="px-4 py-3 text-emerald-950">
-                      {c.render ? c.render(row[c.key]) : (row[c.key] ?? "—")}
+                      {c.render ? c.render(row[c.key]) : (String(row[c.key] ?? "—"))}
                     </td>
                   ))}
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
+                    {!section.readOnly && (section.allowUpdate !== false || canDelete) && <div className="flex justify-end gap-2">
+                      {section.allowUpdate !== false && <button
                         onClick={() => openEdit(row)}
                         className="rounded-full p-2 text-emerald-900/60 ring-1 ring-emerald-900/15 transition hover:bg-emerald-900/5"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      {canDelete && (
+                      </button>}
+                      {canDelete && section.allowDelete !== false && (
                         <button
                           onClick={() => remove(row)}
                           className="rounded-full p-2 text-red-600 ring-1 ring-red-200 transition hover:bg-red-50"
@@ -232,7 +249,7 @@ export default function EntityManager({ section, userRole }) {
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
-                    </div>
+                    </div>}
                   </td>
                 </tr>
               ))}
@@ -267,74 +284,30 @@ export default function EntityManager({ section, userRole }) {
                     </Label>
                     {f.type === "textarea" ? (
                       <Textarea
-                        value={form[f.key] || ""}
+                        value={fieldValue(form[f.key])}
                         onChange={(e) => setField(f.key, e.target.value)}
                         rows={2}
                       />
                     ) : f.type === "select" ? (
                       <select
-                        value={form[f.key] || ""}
+                        value={fieldValue(form[f.key])}
                         onChange={(e) => setField(f.key, e.target.value)}
                         className={selectCls}
+                        disabled={editing && (f.readOnlyOnEdit || (entity === "AppUser" && ["companyId", "username"].includes(f.key)))}
                       >
                         <option value="">— Select —</option>
-                        {(f.options || getOptions(f)).map((opt, i) => (
-                          <option key={`${opt}-${i}`} value={opt}>{opt}</option>
+                        {(f.options
+                          ? f.options.map((option) => ({ value: option, label: option }))
+                          : getOptions(f)
+                        ).map((option, i) => (
+                          <option key={`${option.value}-${i}`} value={option.value}>{option.label}</option>
                         ))}
                       </select>
-                    ) : f.type === "priceList" ? (
-                      <div className="space-y-2">
-                        {(form[f.key] || []).map((row, idx) => (
-                          <div key={idx} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
-                            <select
-                              value={row.unit || ""}
-                              onChange={(e) => updatePriceRow(f.key, idx, "unit", e.target.value)}
-                              className={selectCls}
-                            >
-                              <option value="">Unit</option>
-                              {(optionsCache[f.key] || []).map((r) => (
-                                <option key={r.id || r.name} value={r.name}>{r.name}</option>
-                              ))}
-                            </select>
-                            <Input
-                              type="number"
-                              value={row.price || 0}
-                              onChange={(e) => updatePriceRow(f.key, idx, "price", Number(e.target.value))}
-                              className="w-28"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removePriceRow(f.key, idx)}
-                              className="rounded-full p-2 text-red-600 ring-1 ring-red-200 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => addPriceRow(f.key)}
-                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-emerald-900 ring-1 ring-emerald-900/15 hover:bg-emerald-900/5"
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Add unit
-                        </button>
-                      </div>
-                    ) : f.type === "multiselect" ? (
-                      <div className="grid grid-cols-2 gap-2 rounded-lg bg-stone-50 p-3 sm:grid-cols-3">
-                        {f.options.map((opt) => (
-                          <label key={opt} className="flex items-center gap-2 text-sm text-emerald-950">
-                            <Checkbox
-                              checked={(form[f.key] || []).includes(opt)}
-                              onCheckedChange={(v) => toggleMulti(f.key, opt, v)}
-                            />
-                            {opt}
-                          </label>
-                        ))}
-                      </div>
                     ) : (
                       <Input
                         type={inputType(f)}
-                        value={form[f.key] || ""}
+                        value={fieldValue(form[f.key])}
+                        disabled={editing && (f.readOnlyOnEdit || (entity === "AppUser" && ["companyId", "username"].includes(f.key)))}
                         onChange={(e) =>
                           setField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)
                         }

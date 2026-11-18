@@ -14,10 +14,11 @@ public class BarangayEndpoints : ICarterModule
         var group = app.NewVersionedApi()
             .MapGroup("/api/v{version:apiVersion}/barangays")
             .HasApiVersion(1.0)
-            .WithTags("Barangays");
+            .WithTags("Barangays")
+            .RequireAuthorization("Administrator");
 
-        group.MapGet("/", GetAsync);
-        group.MapGet("/{provinceId:guid}/{cityId:guid}/{barangayId:guid}", GetByIdAsync);
+        group.MapGet("/", GetAsync).AllowAnonymous();
+        group.MapGet("/{provinceId:guid}/{cityId:guid}/{barangayId:guid}", GetByIdAsync).AllowAnonymous();
         group.MapPost("/", CreateAsync);
         group.MapPut("/{provinceId:guid}/{cityId:guid}/{barangayId:guid}", UpdateAsync);
         group.MapDelete("/{provinceId:guid}/{cityId:guid}/{barangayId:guid}", DeleteAsync);
@@ -76,7 +77,9 @@ public class BarangayEndpoints : ICarterModule
                 TraceId = http.TraceIdentifier, Status = 400, Title = "Validation Error",
                 Detail = "BarangayName is required."
             });
-        if (!await db.Cities.AnyAsync(c => c.ProvinceId == req.ProvinceId && c.CityId == req.CityId))
+        var city = await db.Cities.FirstOrDefaultAsync(c => c.ProvinceId == req.ProvinceId && c.CityId == req.CityId);
+        var province = await db.Provinces.FirstOrDefaultAsync(p => p.ProvinceId == req.ProvinceId);
+        if (city is null || province is null)
             return Results.BadRequest(new ErrorEnvelope
             {
                 TraceId = http.TraceIdentifier, Status = 400, Title = "Validation Error",
@@ -88,6 +91,8 @@ public class BarangayEndpoints : ICarterModule
             CityId = req.CityId,
             BarangayId = Guid.NewGuid(),
             BarangayName = req.BarangayName.Trim(),
+            City = city,
+            Province = province,
             CreatedBy = string.IsNullOrWhiteSpace(req.CreatedBy) ? "system" : req.CreatedBy!,
             CreatedOn = DateTime.UtcNow
         };

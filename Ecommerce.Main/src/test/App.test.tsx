@@ -2,12 +2,17 @@
 import { render, screen } from '@testing-library/react'
 // Supplies React Query's provider for isolated server-state tests.
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 // Imports Vitest test primitives and module mocking.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-// Imports the API-backed component without replacing the existing Base44 app.
+// Imports the app component for the frontend smoke test.
 import App from '../ApiStore'
 // Imports the API module so its boundary can be mocked.
 import * as apiModule from '../api'
+
+vi.mock('../lib/AuthContext', () => ({
+  useAuth: () => ({ user: null, logout: vi.fn() }),
+}))
 
 // Clears API mocks and uses realistic in-memory data for each test.
 beforeEach(() => {
@@ -20,9 +25,11 @@ function renderApp() {
     defaultOptions: { queries: { retry: false } },
   })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </MemoryRouter>,
   )
 }
 

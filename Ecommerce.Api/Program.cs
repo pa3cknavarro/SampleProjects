@@ -9,6 +9,14 @@ using Ecommerce.Api.Common;
 using Ecommerce.Api.Data;
 // Imports custom HTTP middleware implementations.
 using Ecommerce.Api.Middleware;
+// Imports credential challenge services and user entity types.
+using Ecommerce.Api.Features.Auth;
+using Ecommerce.Api.Models;
+// Imports cookie authentication, authorization policies, and password hashing.
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
 // Imports EF Core provider configuration.
 using Microsoft.EntityFrameworkCore;
 // Imports Swagger/OpenAPI document types.
@@ -17,10 +25,67 @@ using Microsoft.OpenApi.Models;
 // Creates the web application and service configuration pipeline.
 var builder = WebApplication.CreateBuilder(args);
 
-// Registers the EF Core database context.
+var ecommerceConnectionString = builder.Configuration.GetConnectionString("EcommerceDb");
+if (string.IsNullOrWhiteSpace(ecommerceConnectionString))
+{
+    if (!builder.Environment.IsDevelopment())
+        throw new InvalidOperationException("Set the ConnectionStrings:EcommerceDb PostgreSQL connection string.");
+
+    ecommerceConnectionString = "Host=localhost;Database=ecommerce";
+}
+
+// Registers the durable PostgreSQL database context.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    // Uses process-local InMemory storage for the current demo implementation.
-    options.UseInMemoryDatabase("EcommerceDb"));
+    options.UseNpgsql(ecommerceConnectionString));
+var dataProtectionPath = builder.Configuration["DataProtection:KeyRingPath"];
+if (string.IsNullOrWhiteSpace(dataProtectionPath))
+{
+    var localDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    dataProtectionPath = Path.Combine(
+        string.IsNullOrWhiteSpace(localDataPath) ? builder.Environment.ContentRootPath : localDataPath,
+        "Ecommerce.Api",
+        "DataProtection-Keys");
+}
+Directory.CreateDirectory(dataProtectionPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath))
+    .SetApplicationName("Ecommerce.Api");
+builder.Services.AddSingleton<TotpService>();
+// Hashes account passwords using ASP.NET Core's versioned password-hashing format.
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+// Stores short-lived registration and password-recovery challenges in process memory.
+builder.Services.AddSingleton<CredentialFlowStore>();
+// Sends verification and recovery links when SMTP settings are available.
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+// Protects authenticated frontend sessions with an encrypted, HttpOnly cookie.
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "Ecommerce.Session";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
+        options.Events.OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
+// Requires authentication by default; public credential routes opt out explicitly.
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+    options.AddPolicy("Administrator", policy => policy.RequireRole("Admin"));
+});
 // Registers the process-local idempotency store.
 builder.Services.AddSingleton<IdempotencyStore>();
 // Discovers and registers Carter endpoint modules.
@@ -108,6 +173,16 @@ builder.Services.AddRateLimiter(options =>
             Detail = "Rate limit exceeded. Please try again later."
         }, cancellationToken);
     };
+    options.AddPolicy("AuthSensitive", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
 });
 
 // Configures HTTP JSON serialization behavior.
@@ -146,7 +221,6 @@ builder.Services.AddSwaggerGen(options =>
                 // Resolves the local security scheme by identifier.
                 Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ApiKey" }
             },
-            // Provides no additional OAuth scope requirements.
             Array.Empty<string>()
         }
     });
@@ -160,6 +234,13 @@ using (var scope = app.Services.CreateScope())
 {
     // Resolves the EF Core context used to inspect and seed data.
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    // Applies pending PostgreSQL schema migrations before the API serves requests.
+    // Test hosts use SQLite's model-created schema because committed migrations target PostgreSQL.
+    if (builder.Environment.IsDevelopment() &&
+        builder.Configuration.GetValue<bool>("Database:EnsureCreated"))
+        db.Database.EnsureCreated();
+    else
+        db.Database.Migrate();
     // Seeds demo data only when the location database is empty.
     if (!db.Provinces.Any())
     {
@@ -247,16 +328,58 @@ using (var scope = app.Services.CreateScope())
                 // Supplies the UTC seed timestamp.
                 CreatedOn = DateTime.UtcNow
             });
-        // Adds the bottle unit of measure needed by demo orders.
-        db.UnitOfMeasures.Add(new Ecommerce.Api.Models.UnitOfMeasure
+        var bottle = new Ecommerce.Api.Models.UnitOfMeasure
         {
-            // Supplies the stable unit identifier and metadata.
             Id = uomId,
             Uom = "Btl",
             Description = "Bottle",
             CreatedBy = "seed",
             CreatedOn = DateTime.UtcNow
-        });
+        };
+        db.UnitOfMeasures.Add(bottle);
+        var coldBrew = db.Products.Local.Single(product =>
+            product.ProductId == Guid.Parse("10000000-0000-0000-0000-000000000001"));
+        var sparklingCitrus = db.Products.Local.Single(product =>
+            product.ProductId == Guid.Parse("10000000-0000-0000-0000-000000000002"));
+        var metroManila = db.Provinces.Local.Single(province => province.ProvinceId == ncrId);
+        db.UnitPrices.AddRange(
+            new Ecommerce.Api.Models.UnitPrice
+            {
+                UnitPriceId = Guid.NewGuid(),
+                ProductId = coldBrew.ProductId,
+                Product = coldBrew,
+                UomId = uomId,
+                UnitOfMeasure = bottle,
+                Price = 5.99m
+            },
+            new Ecommerce.Api.Models.UnitPrice
+            {
+                UnitPriceId = Guid.NewGuid(),
+                ProductId = sparklingCitrus.ProductId,
+                Product = sparklingCitrus,
+                UomId = uomId,
+                UnitOfMeasure = bottle,
+                Price = 3.49m
+            });
+        db.AreasAvailable.AddRange(
+            new Ecommerce.Api.Models.AreaAvailable
+            {
+                AreaAvailableId = Guid.NewGuid(),
+                ProductId = coldBrew.ProductId,
+                Product = coldBrew,
+                ProvinceId = ncrId,
+                Province = metroManila,
+                IsAvailable = true
+            },
+            new Ecommerce.Api.Models.AreaAvailable
+            {
+                AreaAvailableId = Guid.NewGuid(),
+                ProductId = sparklingCitrus.ProductId,
+                Product = sparklingCitrus,
+                ProvinceId = ncrId,
+                Province = metroManila,
+                IsAvailable = true
+            });
         // Adds a retail customer class for the demo customer.
         db.CustomerClasses.Add(new Ecommerce.Api.Models.CustomerClass
         {
@@ -268,14 +391,15 @@ using (var scope = app.Services.CreateScope())
             CreatedOn = DateTime.UtcNow
         });
         // Adds a demo user for identity-like cart and order references.
-        db.Users.Add(new Ecommerce.Api.Models.User
+        var demoUser = new Ecommerce.Api.Models.User
         {
             // Supplies stable user and company identifiers.
             Id = userId,
             CompanyId = Guid.Parse("99999999-9999-9999-9999-999999999999"),
-            // Supplies demo credentials for the current sample only.
+            // Stores the demo account's recovery address and a one-way password hash.
             Username = "demo",
-            Password = "demo",
+            Email = "shopper@example.com",
+            CustomerId = customerId,
             // Assigns the currently supported user role.
             Role = Ecommerce.Api.Models.Enumerations.Roles.User,
             // Marks the demo user active.
@@ -284,7 +408,9 @@ using (var scope = app.Services.CreateScope())
             CreatedBy = "seed",
             // Supplies the UTC seed timestamp.
             CreatedOn = DateTime.UtcNow
-        });
+        };
+        demoUser.PasswordHash = new PasswordHasher<User>().HashPassword(demoUser, "demo");
+        db.Users.Add(demoUser);
         // Adds a demo customer for checkout and location integration.
         db.Customers.Add(new Ecommerce.Api.Models.Customer
         {
@@ -312,6 +438,24 @@ using (var scope = app.Services.CreateScope())
         // Persists all startup seed entities together.
         db.SaveChanges();
     }
+
+    if (app.Environment.IsDevelopment() && !db.Users.Any(user => user.Role == Ecommerce.Api.Models.Enumerations.Roles.Admin))
+    {
+        var administrator = new User
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = Guid.NewGuid(),
+            Username = "admin",
+            Email = "admin@localhost",
+            Role = Ecommerce.Api.Models.Enumerations.Roles.Admin,
+            IsActive = true,
+            CreatedBy = "seed",
+            CreatedOn = DateTime.UtcNow
+        };
+        administrator.PasswordHash = new PasswordHasher<User>().HashPassword(administrator, "admin-local-only");
+        db.Users.Add(administrator);
+        db.SaveChanges();
+    }
 }
 
 // Translates unhandled exceptions into controlled API envelopes.
@@ -326,6 +470,10 @@ app.UseRateLimiter();
 app.UseMiddleware<ApiKeyAuthMiddleware>();
 // Applies idempotency behavior to supported mutations.
 app.UseMiddleware<IdempotencyMiddleware>();
+// Resolves encrypted session cookies into the request user principal.
+app.UseAuthentication();
+// Enforces endpoint authorization policies after routing.
+app.UseAuthorization();
 
 // Enables Swagger only in Development to avoid exposing docs in Production.
 if (app.Environment.IsDevelopment())

@@ -14,10 +14,11 @@ public class ProvinceEndpoints : ICarterModule
         var group = app.NewVersionedApi()
             .MapGroup("/api/v{version:apiVersion}/provinces")
             .HasApiVersion(1.0)
-            .WithTags("Provinces");
+            .WithTags("Provinces")
+            .RequireAuthorization("Administrator");
 
-        group.MapGet("/", GetProvincesAsync).WithName("GetProvinces");
-        group.MapGet("/{provinceId:guid}", GetByIdAsync).WithName("GetProvinceById");
+        group.MapGet("/", GetProvincesAsync).WithName("GetProvinces").AllowAnonymous();
+        group.MapGet("/{provinceId:guid}", GetByIdAsync).WithName("GetProvinceById").AllowAnonymous();
         group.MapPost("/", CreateAsync).WithName("CreateProvince");
         group.MapPut("/{provinceId:guid}", UpdateAsync).WithName("UpdateProvince");
         group.MapDelete("/{provinceId:guid}", DeleteAsync).WithName("DeleteProvince");

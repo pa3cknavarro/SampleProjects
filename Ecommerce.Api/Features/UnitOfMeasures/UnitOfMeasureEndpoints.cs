@@ -14,7 +14,8 @@ public class UnitOfMeasureEndpoints : ICarterModule
         var group = app.NewVersionedApi()
             .MapGroup("/api/v{version:apiVersion}/unit-of-measures")
             .HasApiVersion(1.0)
-            .WithTags("UnitOfMeasures");
+            .WithTags("UnitOfMeasures")
+            .RequireAuthorization("Administrator");
 
         group.MapGet("/", async ([AsParameters] PaginationParams query, AppDbContext db) =>
         {
@@ -48,6 +49,26 @@ public class UnitOfMeasureEndpoints : ICarterModule
             db.UnitOfMeasures.Add(body);
             await db.SaveChangesAsync();
             return Results.Created($"/api/v1/unit-of-measures/{body.Id}", body);
+        });
+
+        group.MapPut("/{id:guid}", async (Guid id, UnitOfMeasure request, AppDbContext db) =>
+        {
+            var unit = await db.UnitOfMeasures.FindAsync(id);
+            if (unit is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(request.Uom)) return Results.BadRequest(new { message = "Uom is required." });
+            unit.Uom = request.Uom.Trim();
+            unit.Description = request.Description?.Trim() ?? string.Empty;
+            await db.SaveChangesAsync();
+            return Results.Ok(unit);
+        });
+
+        group.MapDelete("/{id:guid}", async (Guid id, AppDbContext db) =>
+        {
+            var unit = await db.UnitOfMeasures.FindAsync(id);
+            if (unit is null) return Results.NotFound();
+            db.UnitOfMeasures.Remove(unit);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
     }
 }

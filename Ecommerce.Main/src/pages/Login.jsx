@@ -1,16 +1,19 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { ecommerceApi } from "@/api";
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogIn, User, Lock, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
-import { setStorefrontUser } from "@/lib/storefrontAuth";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
 export default function Login() {
+  const { checkUserAuth } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const returnTo = safeReturnTo();
@@ -20,22 +23,12 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const matches = await base44.entities.AppUser.filter({ user_name: username });
-      const found = matches[0];
-      if (!found || found.password !== password) {
-        setError("Invalid username or password");
-        setLoading(false);
-        return;
-      }
-      if (found.disable) {
-        setError("This account is disabled. Contact an administrator.");
-        setLoading(false);
-        return;
-      }
-      setStorefrontUser(found);
+      await ecommerceApi.auth.login({ username, password, twoFactorCode: twoFactorCode || undefined });
+      await checkUserAuth();
       window.location.href = returnTo === "/" ? "/store" : returnTo;
     } catch (err) {
-      setError(err.message || "Could not sign in");
+      setError(err.apiError?.detail || err.message || "Could not sign in");
+      if (err.apiError?.requiresTwoFactor) setRequiresTwoFactor(true);
       setLoading(false);
     }
   };
@@ -78,6 +71,22 @@ export default function Login() {
             />
           </div>
         </div>
+        {requiresTwoFactor && (
+          <div className="space-y-2">
+            <Label htmlFor="two-factor-code">Authenticator or recovery code</Label>
+            <Input
+              id="two-factor-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={32}
+              value={twoFactorCode}
+              onChange={(e) => setTwoFactorCode(e.target.value.replace(/[^a-f0-9]/gi, "").slice(0, 32).toUpperCase())}
+              className="h-12 tracking-[0.3em]"
+              required
+            />
+          </div>
+        )}
         <Button type="submit" className="h-12 w-full font-medium" disabled={loading}>
           {loading ? (
             <>

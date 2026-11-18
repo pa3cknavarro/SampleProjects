@@ -1,13 +1,13 @@
 # Ecommerce Solution
 
-A versioned ASP.NET Core 8 e-commerce API and a React/TypeScript storefront in one .NET solution. `Ecommerce.Api` owns business rules, data access, validation, Swagger contracts, and the API-key demo authentication layer. `Ecommerce.Main` provides the browser storefront and communicates only through HTTP.
+A versioned ASP.NET Core 8 e-commerce API and a React/TypeScript storefront in one .NET solution. `Ecommerce.Api` owns business rules, data access, validation, Swagger contracts, and authentication. `Ecommerce.Main` provides the browser storefront and communicates only through HTTP.
 
 ## Repository structure
 
 | Project | Purpose |
 |---|---|
-| `Ecommerce.Api` | Carter vertical-slice REST API, EF Core InMemory database, Swagger, rate limiting, idempotency, CORS, and demo seed data |
-| `Ecommerce.Main` | React 18, JavaScript storefront (Base44) plus a TypeScript Ecommerce.Api integration route, TanStack Query, Zod, and Vitest |
+| `Ecommerce.Api` | Carter vertical-slice REST API, EF Core PostgreSQL database, Swagger, rate limiting, idempotency, CORS, and demo seed data |
+| `Ecommerce.Main` | Visual Studio JavaScript project (`.esproj`) for the React 18 storefront, with Vite, TypeScript, TanStack Query, Zod, and Vitest |
 | `Ecommerce.Api.Client` | Reusable typed .NET `HttpClient` wrapper |
 | `Ecommerce.ConsoleClient` | .NET console API client sample |
 | `Ecommerce.WebClient` | ASP.NET Core Razor Pages API client sample |
@@ -25,10 +25,10 @@ flowchart LR
     Proxy --> Middleware[API key and idempotency middleware]
     Middleware --> Carter[Carter API endpoints]
     Carter --> EF[Entity Framework Core]
-    EF --> Store[InMemory demo database]
+    EF --> Store[PostgreSQL database]
 ```
 
-PostgreSQL is not currently configured. The API uses `Microsoft.EntityFrameworkCore.InMemory`, so data resets whenever the API process restarts.
+The API persists domain data in PostgreSQL through Npgsql. Configure `ConnectionStrings__EcommerceDb`; Development falls back to `Host=localhost;Database=ecommerce`, and non-Development environments require an explicit connection string. Pending EF Core migrations run at startup. `DataProtection__KeyRingPath` configures the persistent key ring used to protect MFA secrets and authentication cookies. Existing SQLite files are not imported automatically.
 
 ## Integrated features
 
@@ -44,9 +44,14 @@ PostgreSQL is not currently configured. The API uses `Microsoft.EntityFrameworkC
 - TanStack Query caching and mutation invalidation
 - Swagger/OpenAPI contract generation
 - Responsive desktop and mobile storefront layout
-- Existing Base44 storefront preserved at `/store`; the API-backed demo storefront is available at `/api-store`
+- API-backed storefront available at `/store`
+- Email/password registration, verification, login, password recovery, and cookie sessions
+- TOTP multi-factor authentication with one-time recovery codes
+- Persistent in-app notifications
+- Configurable unit prices and per-province product availability, enforced at checkout
+- Administrator-only management endpoints for backend entities
 
-The demo cart is browser-local and is not yet synchronized with the API's cart-item endpoints. Product prices are demo values because the current product DTO and seed data do not expose a complete unit-price model.
+The demo cart is browser-local and is not yet synchronized with the API's cart-item endpoints. The storefront defaults to the first configured unit price; shoppers cannot yet choose among multiple units.
 
 ## API authentication
 
@@ -56,14 +61,15 @@ Protected API routes require:
 X-Api-Key: demo-api-key-12345
 ```
 
-This is a demo mechanism, not a production user-authentication or authorization system. The API currently has no JWT, login, session, role enforcement, or permission model. The Vite development bridge adds the demo header server-side and browser JavaScript should not contain the credential.
+This is a demo API credential, separate from user authentication. User sessions use an HttpOnly cookie and administrator endpoints enforce the Admin role. The Vite development bridge adds the demo header server-side; browser JavaScript should not contain the credential.
 
-Never use the demo API key or plain-text user password design as production authentication.
+The seeded demo administrator password and API key are for local development only and must be replaced before production.
 
 ## Prerequisites
 
 - .NET 8 SDK
 - Node.js and npm
+- Visual Studio 2022 with the Node.js development workload (to open `Ecommerce.Main` as a project)
 - A modern browser
 
 ## Restore and build
@@ -74,6 +80,8 @@ Restore the complete solution and build all .NET projects:
 dotnet restore Ecommerce.sln
 dotnet build Ecommerce.sln
 ```
+
+Open `Ecommerce.sln` in Visual Studio to load `Ecommerce.Main` alongside the .NET projects. Select `Ecommerce.Main` as the startup project to run its Vite development server; install its npm dependencies first as described below.
 
 Install frontend dependencies and build the production bundle:
 
@@ -134,7 +142,7 @@ Run backend integration tests:
 dotnet test Ecommerce.sln
 ```
 
-The xUnit tests verify successful versioned product responses and rejection of requests with a missing API key.
+The xUnit tests verify product API responses, API-key rejection, and the registration, verification, password recovery, and cookie-session flows.
 
 Run frontend tests:
 
@@ -177,23 +185,23 @@ See `Ecommerce.Main/API_INTEGRATION.md` for endpoint status and mappings.
 
 Before production:
 
-- Replace EF Core InMemory with PostgreSQL and Npgsql.
-- Add and run EF Core migrations.
-- Replace the static API key with real authentication and role/permission authorization.
-- Move demo users and plain-text passwords out of seed code.
+- Configure and back up the PostgreSQL database.
+- Share a persistent Data Protection key ring between API instances.
+- Replace the static API key with secret management suitable for the deployment environment.
+- Move registration/password-recovery challenges and idempotency records to persistent/shared storage.
+- Configure and verify a production SMTP provider.
 - Configure production CORS origins explicitly.
 - Serve the API through HTTPS.
-- Add real product unit prices and backend inventory calculations.
 - Synchronize cart state with the API and authenticated user.
 - Add complete frontend CRUD flows only for supported backend endpoints.
 - Add backend integration, authorization, transaction, frontend end-to-end, and browser tests.
-- Replace browser-local checkout values with server-authoritative pricing and inventory rules.
+- Configure external email, push, or SMS delivery if notifications should reach users outside the app.
 
 ## Verification
 
 Current verification results:
 
 - `dotnet build Ecommerce.sln` succeeds with no warnings
-- `dotnet test Ecommerce.sln` passes 2 API integration tests
+- `dotnet test Ecommerce.sln` passes 3 API integration tests
 - `npm test` passes the frontend Vitest suite
 - `npm run build` produces the React production bundle successfully

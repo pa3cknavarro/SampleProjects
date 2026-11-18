@@ -1,29 +1,19 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import EntityManager from "@/components/admin/EntityManager";
 import Dashboard from "@/components/admin/Dashboard";
 import Reports from "@/components/admin/Reports";
 import { SECTIONS } from "@/components/admin/sections";
-import { getStorefrontUser } from "@/lib/storefrontAuth";
+import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 
 export default function Admin() {
   const [activeKey, setActiveKey] = useState("dashboard");
-  const [ready, setReady] = useState(false);
-  const [role, setRole] = useState("");
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const su = getStorefrontUser();
-    if (!su || su.role === "User") {
-      navigate("/");
-      return;
-    }
-    setRole(su.role);
-    setReady(true);
-  }, [navigate]);
+  const { user, isLoadingAuth } = useAuth();
+  const role = user?.role ?? "";
 
   const findSection = (key) => {
     for (const g of SECTIONS) {
@@ -35,13 +25,14 @@ export default function Admin() {
 
   const active = findSection(activeKey);
 
-  if (!ready) {
+  if (isLoadingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-stone-50">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-900/10 border-t-emerald-900" />
       </div>
     );
   }
+  if (role !== "Admin") return <Navigate to="/store" replace />;
 
   return (
     <div className="min-h-screen bg-stone-50">

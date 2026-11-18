@@ -4,7 +4,7 @@
 
 - API version: `v1`
 - Base route: `/api/v1`
-- Authentication: development-only `X-Api-Key` middleware
+- Authentication: development API key at the Vite proxy plus HttpOnly user-session cookies
 - Pagination: `page`, `pageSize`, `search`
 - Error envelope: `traceId`, `status`, `title`, `detail`
 
@@ -12,23 +12,25 @@
 
 | Module | Method | Route | Frontend use | Status |
 |---|---|---|---|---|
-| Products | GET | `/api/v1/products` | Product search and catalog | Integrated |
+| Products | GET | `/api/v1/products` | Product search, configured price, and province availability | Integrated |
 | Products | GET | `/api/v1/products/{id}` | Direct product contract | Service available |
 | Categories | GET | `/api/v1/categories` | Category contract | Service available |
 | Provinces | GET | `/api/v1/provinces` | Cascading location selector | Integrated |
 | Cities | GET | `/api/v1/cities` | Cascading location selector | Integrated |
 | Barangays | GET | `/api/v1/barangays` | Cascading location selector | Integrated |
 | Orders | POST | `/api/v1/orders` | Checkout order creation | Integrated |
-| Orders | GET | `/api/v1/orders` | Not displayed by current UI | Service pending |
-| Orders | GET | `/api/v1/orders/{id}` | Not displayed by current UI | Service pending |
+| Orders | GET | `/api/v1/orders` | Customer order history | Integrated |
+| Orders | GET | `/api/v1/orders/{id}` | Customer/admin order detail | Integrated |
 | Cart items | GET/POST/PUT/DELETE | `/api/v1/cart-items` | Cart UI uses localStorage demo state | Pending backend identity/cart alignment |
 | Customers | GET/POST | `/api/v1/customers` | Demo order uses existing seed customer | Pending full UI |
-| Users | GET/POST/PUT/DELETE | `/api/v1/users` | No login implementation exists in API | Pending backend auth |
-| Unit measures/prices | GET/POST/etc. | `/api/v1/unit-of-measures`, `/api/v1/unit-prices` | No seeded unit-price UI contract | Pending |
-| Customer classes | GET/POST/etc. | `/api/v1/customer-classes` | Administrative functionality | Pending |
-| Areas available | GET/POST/etc. | `/api/v1/areas-available` | Inventory location functionality | Pending |
-| Provinces/cities/barangays | POST/PUT/DELETE | Related routes | Administrative functionality | Pending |
-| Categories/products | POST/DELETE/PUT | Related routes | Not exposed in current customer UI | Pending |
+| Users | GET/POST/PUT/DELETE | `/api/v1/users` | Admin user management | Integrated |
+| Unit measures/prices | GET/POST/etc. | `/api/v1/unit-of-measures`, `/api/v1/unit-prices` | Admin unit and price management | Integrated |
+| Customer classes | GET/POST/etc. | `/api/v1/customer-classes` | Admin management | Integrated |
+| Areas available | GET/POST/etc. | `/api/v1/areas-available` | Admin availability by province | Integrated |
+| Notifications | GET/POST | `/api/v1/notifications` | In-app notification center | Integrated |
+| MFA | POST | `/api/v1/auth/mfa/*` | Account-security settings and login challenge | Integrated |
+| Provinces/cities/barangays | POST/PUT/DELETE | Related routes | Admin location management | Integrated |
+| Categories/products | POST/PUT/DELETE | Related routes | Admin catalog management | Integrated |
 
 ## Shared Contracts
 

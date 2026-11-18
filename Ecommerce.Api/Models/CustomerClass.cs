@@ -44,7 +44,7 @@ public class CustomerClass
     [Display(Name = "Created On")]
     // Short date, including while the value is shown in an editor.
     [DisplayFormat(ApplyFormatInEditMode = true, DataFormatString = "{0:d}")]
-    // Nullable local timestamp captured at construction with DateTime.Now.
-    public DateTime? CreatedOn { get; set; } = DateTime.Now;
+    // Nullable UTC timestamp captured when the object is constructed.
+    public DateTime? CreatedOn { get; set; } = DateTime.UtcNow;
 }
 // Ends the customer-class entity. Customer.CustomerClassId points here.

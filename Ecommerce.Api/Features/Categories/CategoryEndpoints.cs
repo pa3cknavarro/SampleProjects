@@ -14,7 +14,8 @@ public class CategoryEndpoints : ICarterModule
         var group = app.NewVersionedApi()
             .MapGroup("/api/v{version:apiVersion}/categories")
             .HasApiVersion(1.0)
-            .WithTags("Categories");
+            .WithTags("Categories")
+            .RequireAuthorization("Administrator");
 
         group.MapGet("/", async ([AsParameters] PaginationParams query, AppDbContext db) =>
         {
@@ -39,7 +40,7 @@ public class CategoryEndpoints : ICarterModule
             {
                 Items = items, TotalCount = total, Page = page, PageSize = pageSize
             });
-        });
+        }).AllowAnonymous();
 
         group.MapPost("/", async (CreateCategoryRequest req, AppDbContext db, HttpContext http) =>
         {
@@ -63,6 +64,36 @@ public class CategoryEndpoints : ICarterModule
                 CategoryId = e.CategoryId, CategoryName = e.CategoryName ?? "",
                 CreatedBy = e.CreatedBy, CreatedOn = e.CreatedOn
             });
+        });
+
+        group.MapPut("/{categoryId:guid}", async (Guid categoryId, CreateCategoryRequest req, AppDbContext db, HttpContext http) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.CategoryName))
+                return Results.BadRequest(new ErrorEnvelope
+                {
+                    TraceId = http.TraceIdentifier, Status = 400, Title = "Validation Error",
+                    Detail = "CategoryName is required."
+                });
+            var category = await db.Categories.FirstOrDefaultAsync(item => item.CategoryId == categoryId);
+            if (category is null) return Results.NotFound();
+            category.CategoryName = req.CategoryName.Trim();
+            await db.SaveChangesAsync();
+            return Results.Ok(new CategoryResponse
+            {
+                CategoryId = category.CategoryId,
+                CategoryName = category.CategoryName ?? string.Empty,
+                CreatedBy = category.CreatedBy,
+                CreatedOn = category.CreatedOn
+            });
+        });
+
+        group.MapDelete("/{categoryId:guid}", async (Guid categoryId, AppDbContext db) =>
+        {
+            var category = await db.Categories.FindAsync(categoryId);
+            if (category is null) return Results.NotFound();
+            db.Categories.Remove(category);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
     }
 }

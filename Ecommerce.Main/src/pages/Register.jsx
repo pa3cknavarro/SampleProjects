@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { ecommerceApi } from "@/api";
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,8 @@ import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
 export default function Register() {
+  const { checkUserAuth } = useAuth();
+  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -28,7 +31,8 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await base44.auth.register({ email, password });
+      const result = await ecommerceApi.auth.register({ companyName, email, password });
+      if (result.verificationCode) setOtpCode(result.verificationCode);
       setShowOtp(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -41,11 +45,10 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
-      }
-      window.location.href = safeReturnTo();
+      await ecommerceApi.auth.verifyEmail({ email, code: otpCode });
+      await checkUserAuth();
+      const returnTo = safeReturnTo();
+      window.location.href = returnTo === "/" ? "/store" : returnTo;
     } catch (err) {
       setError(err.message || "Invalid verification code");
     } finally {
@@ -56,7 +59,8 @@ export default function Register() {
   const handleResend = async () => {
     setError("");
     try {
-      await base44.auth.resendOtp(email);
+      const result = await ecommerceApi.auth.resendVerification(email);
+      if (result.verificationCode) setOtpCode(result.verificationCode);
       toast({
         title: "Code sent",
         description: "Check your email for the new code.",
@@ -145,6 +149,19 @@ export default function Register() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
+          <Label htmlFor="companyName">Company name</Label>
+          <Input
+            id="companyName"
+            autoComplete="organization"
+            autoFocus
+            placeholder="Your company"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            className="h-12"
+            required
+          />
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
@@ -152,7 +169,6 @@ export default function Register() {
               id="email"
               type="email"
               autoComplete="email"
-              autoFocus
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

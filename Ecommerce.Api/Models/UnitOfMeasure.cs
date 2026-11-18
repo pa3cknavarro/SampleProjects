@@ -44,7 +44,7 @@ public class UnitOfMeasure
     [Display(Name = "Created On")]
     // Short-date format, also applied in edit mode.
     [DisplayFormat(ApplyFormatInEditMode = true, DataFormatString = "{0:d}")]
-    // Local timestamp captured when the object is constructed.
-    public DateTime CreatedOn { get; set; } = DateTime.Now;
+    // UTC timestamp captured when the object is constructed.
+    public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
 }
 // Ends the unit-of-measure entity.

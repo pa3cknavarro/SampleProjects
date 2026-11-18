@@ -12,10 +12,15 @@ import {
 // Uses the singular helper module that exists beside this component.
 } from "./image-helper"
 
+/** @typedef {{ baseUrl: string, filename: string }} ParsedImageUrl */
+/** @typedef {Omit<React.ComponentPropsWithoutRef<"img">, "src"> & { parsed: ParsedImageUrl, fittingType?: string, focalPoint?: { x: number, y: number }, quality?: number, aspectRatio?: string }} ResponsiveImageProps */
+/** @typedef {React.ComponentPropsWithoutRef<"img"> & { fittingType?: string, originWidth?: number, originHeight?: number, focalPointX?: number, focalPointY?: number, quality?: number }} ImageProps */
+
 const FALLBACK_IMAGE_URL =
   "https://static.wixstatic.com/media/12d367_4f26ccd17f8f4e3a8958306ea08c2332~mv2.png"
 
-const ImageWrapper = React.forwardRef(({ aspectRatio, className, style, children }, ref) => (
+/** @type {React.ForwardRefRenderFunction<HTMLSpanElement, React.ComponentPropsWithoutRef<"span"> & { aspectRatio?: string }>} */
+const renderImageWrapper = ({ aspectRatio, className, style, children }, ref) => (
   <span
     ref={ref}
     className={cn("inline-block relative", className)}
@@ -23,11 +28,12 @@ const ImageWrapper = React.forwardRef(({ aspectRatio, className, style, children
   >
     {children}
   </span>
-))
+  )
+const ImageWrapper = React.forwardRef(renderImageWrapper)
 ImageWrapper.displayName = "ImageWrapper"
 
-const ResponsiveImage = React.forwardRef(
-  ({ parsed, fittingType, focalPoint, quality, className, style, aspectRatio, onLoad, ...props }, parentRef) => {
+/** @type {React.ForwardRefRenderFunction<HTMLImageElement, ResponsiveImageProps>} */
+const renderResponsiveImage = ({ parsed, fittingType, focalPoint, quality, className, style, aspectRatio, onLoad, ...props }, parentRef) => {
     const wrapperRef = React.useRef(null)
     const imgRef = React.useRef(null)
     const size = useSize(wrapperRef)
@@ -105,32 +111,32 @@ const ResponsiveImage = React.forwardRef(
       </ImageWrapper>
     )
   }
-)
+const ResponsiveImage = React.forwardRef(renderResponsiveImage)
 ResponsiveImage.displayName = "ResponsiveImage"
 
 /**
  * Image with built-in Wix Media Platform support: canonical public images on
- * media.base44.com and static.wixstatic.com/media are resized to the rendered
+ * static.wixstatic.com/media images are resized to the rendered
  * container per device pixel ratio and re-encoded to WebP; `fittingType="fill"`
  * crops server-side, optionally anchored at a focal point. Other URLs render
  * as a plain <img>. Failed transforms retry the original URL; only a broken
  * original swaps to the generic fallback image.
  */
-const Image = React.forwardRef(
-  (
-    {
-      src,
-      fittingType = "fill",
-      originWidth,
-      originHeight,
-      focalPointX,
-      focalPointY,
-      quality = 90,
-      onError,
-      ...props
-    },
-    ref
-  ) => {
+/** @type {React.ForwardRefRenderFunction<HTMLImageElement, ImageProps>} */
+const renderImage = (
+  {
+    src,
+    fittingType = "fill",
+    originWidth,
+    originHeight,
+    focalPointX,
+    focalPointY,
+    quality = 90,
+    onError,
+    ...props
+  },
+  ref
+) => {
     const parsedSource = src && src !== FALLBACK_IMAGE_URL ? parseWixMediaUrl(src) : null
     const initialMode = parsedSource ? IMAGE_LOAD_MODE.OPTIMIZED : IMAGE_LOAD_MODE.ORIGINAL
     const [loadState, setLoadState] = React.useState({ src, mode: initialMode })
@@ -192,8 +198,8 @@ const Image = React.forwardRef(
         {...imageProps}
       />
     )
-  }
-)
+}
+const Image = React.forwardRef(renderImage)
 Image.displayName = "Image"
 
 export { Image }
