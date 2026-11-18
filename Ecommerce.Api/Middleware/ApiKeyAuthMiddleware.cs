@@ -1,91 +1,92 @@
-// Namespace for custom middleware components
+// Places the middleware in the API pipeline namespace.
 namespace Ecommerce.Api.Middleware;
 
+// Imports the shared API-key name and error-envelope contract.
 using Ecommerce.Api.Common;
 
+// Documents middleware behavior for API maintainers.
 /// <summary>
-/// Middleware that enforces presence of a valid API key in the request headers.
-/// Implements the "Auth in Headers" requirement.
-/// Sample pages and Swagger are excluded so the demo UI can load without a key.
+/// Requires the configured API key for protected routes and permits public documentation resources.
 /// </summary>
+// Implements API-key validation for each incoming request.
 public class ApiKeyAuthMiddleware
 {
-    // Stores the next HTTP pipeline delegate for forwarding approved requests.
+    // Stores the next pipeline delegate so approved requests can continue.
     private readonly RequestDelegate _next;
 
-    // Receives the pipeline continuation when ASP.NET constructs middleware.
+    // Receives the remainder of the ASP.NET Core pipeline.
     public ApiKeyAuthMiddleware(RequestDelegate next)
     {
-        // Saves the continuation delegate for later invocation.
+        // Saves the delegate for request-time invocation.
         _next = next;
     }
 
-    // Processes each incoming request and applies demo API-key enforcement.
+    // Validates each request before it reaches protected endpoints.
     public async Task InvokeAsync(HttpContext context)
     {
-        // Allows browser preflight requests to reach CORS middleware without an API key.
+        // Allows CORS preflight requests to reach the CORS middleware without credentials.
         if (HttpMethods.IsOptions(context.Request.Method))
         {
-            // Forwards the OPTIONS request to CORS and the remaining pipeline.
+            // Forwards the preflight request to the next middleware.
             await _next(context);
-            // Stops processing after forwarding the preflight.
+            // Prevents the API-key check from running on this preflight.
             return;
         }
 
-        // Captures the normalized request path for public-route checks.
+        // Captures the current path for public-resource checks.
         var path = context.Request.Path.Value ?? string.Empty;
-        // Tests the path against the small set of public resources.
+        // Identifies documentation and static resources that are intentionally public.
         var isPublic =
-            // Allows Swagger endpoints to remain browsable.
+            // Allows Swagger UI and OpenAPI JSON resources.
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
-            // Allows OpenAPI resources to remain browsable.
+            // Allows separately hosted OpenAPI resources.
             path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase) ||
-            // Allows demo sample routes.
+            // Allows API sample pages.
             path.StartsWith("/samples", StringComparison.OrdinalIgnoreCase) ||
             // Allows the application root.
             path == "/" ||
-            // Allows HTML sample assets.
+            // Allows static HTML pages.
             path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
-            // Allows JavaScript sample assets.
+            // Allows static JavaScript assets.
             path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
-            // Allows stylesheet sample assets.
+            // Allows static CSS assets.
             path.EndsWith(".css", StringComparison.OrdinalIgnoreCase);
 
-        // Continues public resources without API-key validation.
+        // Skips authentication for paths marked public.
         if (isPublic)
         {
-            // Sends the public request to the next middleware component.
+            // Continues processing the public request.
             await _next(context);
             // Stops this middleware after public-route forwarding.
             return;
         }
 
-        // Rejects requests that omit or mismatch the configured API-key header.
+        // Rejects requests that omit the key or provide a different value.
         if (!context.Request.Headers.TryGetValue(ApiConstants.ApiKeyHeaderName, out var extractedApiKey) ||
             extractedApiKey != ApiConstants.ExpectedApiKey)
         {
-            // Creates the controlled unauthorized response envelope.
+            // Constructs a safe error response for unauthenticated callers.
             var error = new ErrorEnvelope
             {
-                // Links the error to the current request trace.
+                // Associates the error with this request's trace identifier.
                 TraceId = context.TraceIdentifier,
-                // Uses the standard unauthorized status.
+                // Reports the standard unauthorized status.
                 Status = StatusCodes.Status401Unauthorized,
-                // Names the HTTP failure.
+                // Provides a concise error title.
                 Title = "Unauthorized",
-                // Explains the missing or invalid API-key requirement safely.
+                // Names the required header without revealing secrets.
                 Detail = $"A valid '{ApiConstants.ApiKeyHeaderName}' header is required."
             };
 
-            // Sets the unauthorized HTTP status.
+            // Sets the response status before writing the envelope.
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            // Serializes the error envelope as JSON.
+            // Serializes the structured error as JSON.
             await context.Response.WriteAsJsonAsync(error);
-            // Stops the pipeline instead of forwarding an unauthorized request.
+            // Stops processing so the protected endpoint cannot execute.
             return;
         }
 
-        // Forwards authenticated API requests to rate limiting and endpoint middleware.
+        // Continues processing when the API key is valid.
         await _next(context);
     }
 }

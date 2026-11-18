@@ -7,7 +7,7 @@ A versioned ASP.NET Core 8 e-commerce API and a React/TypeScript storefront in o
 | Project | Purpose |
 |---|---|
 | `Ecommerce.Api` | Carter vertical-slice REST API, EF Core InMemory database, Swagger, rate limiting, idempotency, CORS, and demo seed data |
-| `Ecommerce.Main` | React 19, TypeScript, Vite, TanStack Query, Zod, and Vitest storefront |
+| `Ecommerce.Main` | React 18, JavaScript storefront (Base44) plus a TypeScript Ecommerce.Api integration route, TanStack Query, Zod, and Vitest |
 | `Ecommerce.Api.Client` | Reusable typed .NET `HttpClient` wrapper |
 | `Ecommerce.ConsoleClient` | .NET console API client sample |
 | `Ecommerce.WebClient` | ASP.NET Core Razor Pages API client sample |
@@ -44,6 +44,7 @@ PostgreSQL is not currently configured. The API uses `Microsoft.EntityFrameworkC
 - TanStack Query caching and mutation invalidation
 - Swagger/OpenAPI contract generation
 - Responsive desktop and mobile storefront layout
+- Existing Base44 storefront preserved at `/store`; the API-backed demo storefront is available at `/api-store`
 
 The demo cart is browser-local and is not yet synchronized with the API's cart-item endpoints. Product prices are demo values because the current product DTO and seed data do not expose a complete unit-price model.
 

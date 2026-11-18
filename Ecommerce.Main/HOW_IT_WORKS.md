@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-`Ecommerce.Api` owns HTTP contracts, validation, authorization, data access, and business operations. `Ecommerce.Main` provides the React storefront. PostgreSQL should be the API's database, but the current repository uses EF Core InMemory and is therefore process-local.
+`Ecommerce.Api` owns HTTP contracts, validation, authorization, data access, and business operations. `Ecommerce.Main` contains the existing Base44-backed storefront and an API-backed React storefront at `/api-store`. PostgreSQL should be the API's database, but the current repository uses EF Core InMemory and is therefore process-local.
 
 ## 2. System Architecture
 
@@ -20,7 +20,9 @@ flowchart LR
 ## 3. Project Structure
 
 - `Ecommerce.Main/src/api.ts`: centralized HTTP client and typed feature calls.
-- `Ecommerce.Main/src/App.tsx`: storefront, cart, and location UI.
+- `Ecommerce.Main/src/pages/Store.jsx`: existing Base44 storefront.
+- `Ecommerce.Main/src/ApiStore.tsx`: API-backed storefront, cart, and location UI.
+- `Ecommerce.Main/src/App.jsx`: existing router, with `/api-store` registered for the API-backed storefront.
 - `Ecommerce.Main/src/main.tsx`: React and TanStack Query providers.
 - `Ecommerce.Main/src/test`: Vitest and Testing Library tests.
 - `Ecommerce.Api/Program.cs`: service registration, seed data, middleware, CORS, and Swagger.
@@ -34,7 +36,7 @@ Restore and build .NET dependencies, run the API, install frontend dependencies,
 
 ## 5. Frontend Architecture
 
-The frontend uses React, TypeScript, Vite, TanStack Query for server state, Zod for payload validation, localStorage for the demo cart, and a single centralized API client.
+The existing storefront uses React, JavaScript, and Base44. The `/api-store` route uses React, TypeScript, TanStack Query for server state, Zod for payload validation, localStorage for the demo cart, and a single centralized API client.
 
 ## 6. Backend Architecture
 

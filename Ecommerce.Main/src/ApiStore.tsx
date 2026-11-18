@@ -61,7 +61,7 @@ const prices: Record<string, number> = {
   '10000000-0000-0000-0000-000000000002': 3.49,
 }
 
-// Defines the complete storefront component and all of its feature interactions.
+// Defines the API-backed storefront component and its feature interactions.
 export default function App() {
   // Tracks the currently selected page tab.
   const [tab, setTab] = useState<'shop' | 'cart' | 'locations'>('shop')

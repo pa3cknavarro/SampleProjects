@@ -4,8 +4,8 @@ import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 // Imports Vitest test primitives and module mocking.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-// Imports the application component under test.
-import App from '../App'
+// Imports the API-backed component without replacing the existing Base44 app.
+import App from '../ApiStore'
 // Imports the API module so its boundary can be mocked.
 import * as apiModule from '../api'
 

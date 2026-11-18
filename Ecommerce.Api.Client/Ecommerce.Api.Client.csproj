@@ -1,12 +1,22 @@
+<!-- Class library SDK. This project produces a DLL and does not include a web host. -->
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Property group for the client library. -->
   <PropertyGroup>
+    <!-- The library targets the same .NET 8 surface as the API and the sample apps. -->
     <TargetFramework>net8.0</TargetFramework>
+    <!-- Implicitly imports System, System.Net.Http, and other default namespaces so the client files can omit those usings. -->
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Enables nullable annotations on the DTOs and ApiResult so callers see which properties may be null. -->
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <!-- NuGet dependencies used by the typed HttpClient. -->
   <ItemGroup>
+    <!-- Provides IHttpClientFactory and AddHttpClient, which the DI extension uses to register EcommerceApiClient. -->
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <!-- Provides IServiceCollection, the type the extension method extends so hosts can call AddEcommerceApiClient. -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <!-- Provides ReadFromJsonAsync and PostAsJsonAsync, used to serialize request bodies and deserialize responses. -->
     <PackageReference Include="System.Net.Http.Json" Version="8.0.1" />
   </ItemGroup>
+<!-- Ends the project. -->
 </Project>
