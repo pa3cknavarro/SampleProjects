@@ -1,0 +1,139 @@
+/* Sets the global font, text color, and page background. */
+:root {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  color: #172033;
+  background: #f4f7fb;
+}
+
+/* Applies consistent sizing to every layout element. */
+* { box-sizing: border-box; }
+
+/* Removes the browser default body margin. */
+body { margin: 0; }
+/* Gives controls the surrounding application font. */
+button, input, select { font: inherit; }
+
+/* Ensures the application fills the viewport. */
+main { min-height: 100vh; }
+/* Lays out the top navigation bar. */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 32px;
+  color: white;
+  background: #102a43;
+}
+/* Defines the storefront title typography. */
+.topbar h1 { margin: 0; font-size: 1.35rem; }
+/* Groups navigation actions horizontally. */
+nav { display: flex; gap: 8px; }
+/* Styles navigation buttons consistently. */
+nav button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #d9e2ec;
+  background: transparent;
+  cursor: pointer;
+}
+/* Highlights the selected navigation tab. */
+nav button.active { color: #102a43; background: #bcdefa; }
+
+/* Centers content and provides responsive page padding. */
+section { max-width: 1120px; margin: 0 auto; padding: 32px; }
+/* Separates the search toolbar from the card grid. */
+.toolbar { margin-bottom: 24px; }
+/* Organizes form fields into labeled stacks. */
+label { display: grid; gap: 7px; font-weight: 700; }
+/* Gives text and selection controls a consistent form appearance. */
+input, select {
+  min-width: 220px;
+  border: 1px solid #bcccdc;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: white;
+}
+/* Creates a responsive product card grid. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+/* Styles each product card with spacing and elevation. */
+.card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
+  padding: 18px;
+  background: white;
+  box-shadow: 0 4px 14px rgba(16, 42, 67, 0.05);
+}
+/* Normalizes card title size and spacing. */
+.card h2 { margin: 0; font-size: 1.05rem; }
+/* Gives descriptions a stable height and readable secondary color. */
+.card p { min-height: 42px; margin: 0; color: #486581; }
+/* Creates a text-based product visual placeholder. */
+.product-mark {
+  display: grid;
+  place-items: center;
+  height: 120px;
+  border-radius: 8px;
+  color: #102a43;
+  background: #d9eafb;
+  font-size: 2.5rem;
+  font-weight: 800;
+}
+/* Styles primary card and summary actions. */
+.card button, .summary button {
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: white;
+  background: #1769aa;
+  cursor: pointer;
+}
+/* Makes unavailable products visually inactive. */
+.card button:disabled { cursor: not-allowed; opacity: 0.55; }
+/* Places cart rows beside the order summary on wide screens. */
+.cart-layout { display: grid; grid-template-columns: 1fr 260px; gap: 24px; }
+/* Aligns cart product data and quantity controls. */
+.cart-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #d9e2ec;
+  padding: 16px 0;
+}
+/* Stacks product name and price details. */
+.cart-row div { display: grid; gap: 4px; }
+/* Constrains cart quantity inputs. */
+.cart-row input { min-width: 80px; width: 80px; }
+/* Presents a raised order summary panel. */
+.summary {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  border-radius: 12px;
+  padding: 20px;
+  background: white;
+  box-shadow: 0 4px 14px rgba(16, 42, 67, 0.08);
+}
+/* Arranges cascading location selectors in a three-column layout. */
+.location-form { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 16px; }
+/* Gives alert and success messages consistent page placement. */
+.alert, .success { max-width: 1120px; margin: 20px auto 0; border-radius: 8px; padding: 12px 16px; }
+/* Styles backend or validation errors with a light red treatment. */
+.alert { color: #8a1c1c; background: #ffe8e8; }
+/* Styles successful checkout feedback with a light green treatment. */
+.success { color: #1b6b3a; background: #def7e5; }
+
+/* Adjusts layout for narrow tablet and mobile viewports. */
+@media (max-width: 760px) {
+  .topbar { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .cart-layout, .location-form { grid-template-columns: 1fr; }
+  nav { width: 100%; }
+  nav button { flex: 1; }
+}
