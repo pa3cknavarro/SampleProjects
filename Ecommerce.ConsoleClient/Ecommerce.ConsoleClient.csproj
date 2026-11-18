@@ -1,13 +1,24 @@
+<!-- Console executable SDK. Output is an app, not a web site. -->
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Build properties for the sample console. -->
   <PropertyGroup>
+    <!-- Exe tells the SDK to emit a runnable program with an entry point instead of only a DLL. -->
     <OutputType>Exe</OutputType>
+    <!-- Compiles the console sample for .NET 8. -->
     <TargetFramework>net8.0</TargetFramework>
+    <!-- Implicit usings include System and System.Threading.Tasks, which the top-level Program.cs relies on. -->
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Nullable checks stay on so the sample matches the library's annotations. -->
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <!-- Packages and the project reference the console needs at compile time. -->
   <ItemGroup>
+    <!-- Concrete ServiceCollection implementation used to build a provider in Program.cs. -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <!-- HttpClient factory registration used when the sample calls AddHttpClient. -->
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <!-- Compiles against the typed client in the sibling project and copies its DLL to the output. -->
     <ProjectReference Include="..\Ecommerce.Api.Client\Ecommerce.Api.Client.csproj" />
   </ItemGroup>
+<!-- Ends the console project. -->
 </Project>

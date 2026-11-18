@@ -1,10 +1,18 @@
+<!-- Web SDK so Razor Pages, static files, and Kestrel are included for the sample site. -->
 <Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Build properties for the Razor Pages host. -->
   <PropertyGroup>
+    <!-- The site targets .NET 8, the same framework as the API client it calls. -->
     <TargetFramework>net8.0</TargetFramework>
+    <!-- Nullable reference types are enforced in the page models. -->
     <Nullable>enable</Nullable>
+    <!-- Implicit usings cover the ASP.NET Core namespaces used by Program.cs and the page model. -->
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+  <!-- The only extra input is the typed client project. -->
   <ItemGroup>
+    <!-- References the client library so pages can inject EcommerceApiClient. The relative path walks up to the sibling folder. -->
     <ProjectReference Include="..\Ecommerce.Api.Client\Ecommerce.Api.Client.csproj" />
   </ItemGroup>
+<!-- Ends the web client project. -->
 </Project>
