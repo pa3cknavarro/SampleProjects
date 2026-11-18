@@ -4,8 +4,10 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import ScrollToTop from './components/ScrollToTop';
+// Imports the shared registration error view from the project-level components directory.
+import UserNotRegisteredError from '../components/UserNotRegisteredError';
+// Imports the shared route scroll helper from the project-level components directory.
+import ScrollToTop from '../components/ScrollToTop';
 import Store from './pages/Store';
 import OrderDetail from './pages/OrderDetail';
 import Login from './pages/Login';
@@ -13,6 +15,8 @@ import Admin from './pages/Admin';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+// Imports the API-backed storefront without replacing the existing Base44 experience.
+import EcommerceApiStore from './ApiStore';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -42,6 +46,8 @@ const AuthenticatedApp = () => {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/store" element={<Store />} />
+      {/* Keeps the existing store intact and exposes the new Ecommerce.Api integration separately. */}
+      <Route path="/api-store" element={<EcommerceApiStore />} />
       <Route path="/orders/:id" element={<OrderDetail />} />
       <Route path="/admin" element={<Admin />} />
       <Route path="/register" element={<Register />} />

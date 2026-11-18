@@ -1,99 +1,92 @@
-// Namespace for request pipeline components registered from Program.cs.
+// Places the middleware in the API pipeline namespace.
 namespace Ecommerce.Api.Middleware;
 
-// ErrorEnvelope and the API-key header constants live in Common.
+// Imports the shared API-key name and error-envelope contract.
 using Ecommerce.Api.Common;
 
-// XML documentation consumed by tooling. It describes the middleware's job:
-// require a valid API key, while letting Swagger and sample pages through.
+// Documents middleware behavior for API maintainers.
 /// <summary>
-/// Middleware that enforces presence of a valid API key in the request headers.
-/// Implements the "Auth in Headers" requirement.
-/// Sample pages and Swagger are excluded so the demo UI can load without a key.
+/// Requires the configured API key for protected routes and permits public documentation resources.
 /// </summary>
-// The class is constructed once by the middleware pipeline and reused for every request.
+// Implements API-key validation for each incoming request.
 public class ApiKeyAuthMiddleware
 {
-    // The next component in the pipeline. RequestDelegate is a function that
-    // takes an HttpContext and returns a Task. Invoking it continues the request.
+    // Stores the next pipeline delegate so approved requests can continue.
     private readonly RequestDelegate _next;
 
-    // The host passes the remainder of the pipeline into this constructor.
+    // Receives the remainder of the ASP.NET Core pipeline.
     public ApiKeyAuthMiddleware(RequestDelegate next)
     {
-        // Stores the delegate so InvokeAsync can call it after the key check passes.
+        // Saves the delegate for request-time invocation.
         _next = next;
     }
-    // Ends the constructor.
 
-    // Entry point called by ASP.NET Core for each request. async Task lets the
-    // method await the rest of the pipeline or the JSON error write.
+    // Validates each request before it reaches protected endpoints.
     public async Task InvokeAsync(HttpContext context)
     {
-        // Path.Value can be null, so ?? substitutes an empty string. Later
-        // comparisons then run on a real string.
-        var path = context.Request.Path.Value ?? string.Empty;
-
-        // True when this URL should skip authentication. Each StartsWith or EndsWith
-        // is ordinal and case-insensitive. The || chain is true if any one pattern matches.
-        var isPublic =
-            // Swagger UI and its JSON live under /swagger.
-            path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
-            // OpenAPI documents may be served under /openapi.
-            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase) ||
-            // Demo HTML under /samples is allowed without a key.
-            path.StartsWith("/samples", StringComparison.OrdinalIgnoreCase) ||
-            // The site root is public.
-            path == "/" ||
-            // Static HTML files are public.
-            path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
-            // Static scripts are public.
-            path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
-            // Static stylesheets are public.
-            path.EndsWith(".css", StringComparison.OrdinalIgnoreCase);
-
-        // Public paths skip the header check.
-        if (isPublic)
+        // Allows CORS preflight requests to reach the CORS middleware without credentials.
+        if (HttpMethods.IsOptions(context.Request.Method))
         {
-            // Calls the rest of the pipeline and waits until it finishes.
+            // Forwards the preflight request to the next middleware.
             await _next(context);
-            // Returns so the key check below does not also run.
+            // Prevents the API-key check from running on this preflight.
             return;
         }
-        // Ends the public-path branch.
 
-        // TryGetValue looks up X-Api-Key without throwing when the header is absent.
-        // The second clause rejects a header whose value is not the demo key.
-        // StringValues compared with != uses its equality against the expected string.
+        // Captures the current path for public-resource checks.
+        var path = context.Request.Path.Value ?? string.Empty;
+        // Identifies documentation and static resources that are intentionally public.
+        var isPublic =
+            // Allows Swagger UI and OpenAPI JSON resources.
+            path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
+            // Allows separately hosted OpenAPI resources.
+            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase) ||
+            // Allows API sample pages.
+            path.StartsWith("/samples", StringComparison.OrdinalIgnoreCase) ||
+            // Allows the application root.
+            path == "/" ||
+            // Allows static HTML pages.
+            path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
+            // Allows static JavaScript assets.
+            path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+            // Allows static CSS assets.
+            path.EndsWith(".css", StringComparison.OrdinalIgnoreCase);
+
+        // Skips authentication for paths marked public.
+        if (isPublic)
+        {
+            // Continues processing the public request.
+            await _next(context);
+            // Stops this middleware after public-route forwarding.
+            return;
+        }
+
+        // Rejects requests that omit the key or provide a different value.
         if (!context.Request.Headers.TryGetValue(ApiConstants.ApiKeyHeaderName, out var extractedApiKey) ||
             extractedApiKey != ApiConstants.ExpectedApiKey)
         {
-            // Builds the JSON body returned for a rejected call.
+            // Constructs a safe error response for unauthenticated callers.
             var error = new ErrorEnvelope
             {
-                // Copies the request's trace id so the client can quote it in a bug report.
+                // Associates the error with this request's trace identifier.
                 TraceId = context.TraceIdentifier,
-                // 401. StatusCodes.Status401Unauthorized is the integer 401.
+                // Reports the standard unauthorized status.
                 Status = StatusCodes.Status401Unauthorized,
-                // Short title serialized into the envelope.
+                // Provides a concise error title.
                 Title = "Unauthorized",
-                // Detail includes the header name via interpolation so the client knows what to send.
+                // Names the required header without revealing secrets.
                 Detail = $"A valid '{ApiConstants.ApiKeyHeaderName}' header is required."
             };
-            // Ends the object initializer.
 
-            // Sets the HTTP status line to 401 before the body is written.
+            // Sets the response status before writing the envelope.
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            // Serializes error as JSON and writes it to the response. The await completes when the write finishes.
+            // Serializes the structured error as JSON.
             await context.Response.WriteAsJsonAsync(error);
-            // Stops the pipeline. The endpoint never runs.
+            // Stops processing so the protected endpoint cannot execute.
             return;
         }
-        // Ends the unauthorized branch.
 
-        // The header matched. Continue to routing, endpoints, and the rest of the middleware.
+        // Continues processing when the API key is valid.
         await _next(context);
     }
-    // Ends InvokeAsync.
 }
-// Ends the middleware class.
