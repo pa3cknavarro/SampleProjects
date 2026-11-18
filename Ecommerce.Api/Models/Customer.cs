@@ -34,13 +34,13 @@ public class Customer
     public string ContactNumber { get; set; } = string.Empty;
 
     // Province part of the address. Also a foreign key to Province.
-    public Guid ProvinceId { get; set; }
+    public Guid? ProvinceId { get; set; }
 
     // City part of the address.
-    public Guid CityId { get; set; }
+    public Guid? CityId { get; set; }
 
     // Barangay part of the address.
-    public Guid BarangayId { get; set; }
+    public Guid? BarangayId { get; set; }
 
     // Street or building line. Non-nullable, default empty.
     public string Address { get; set; } = string.Empty;

@@ -10,8 +10,8 @@ using Ecommerce.Api.Models;
 // The unit of work. AddDbContext registers this class, and each scope gets one instance.
 public class AppDbContext : DbContext
 {
-    // Options carry the provider, here the in-memory database name. base(options)
-    // passes them to DbContext, which uses them for every query on this instance.
+    // Options carry the configured provider and connection. base(options) passes
+    // them to DbContext, which uses them for every query on this instance.
     // The constructor body is empty.
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -58,6 +58,10 @@ public class AppDbContext : DbContext
     // Query and save users through this set.
     public DbSet<User> Users { get; set; } = null!;
 
+    public DbSet<Notification> Notifications { get; set; } = null!;
+
+    public DbSet<MfaRecoveryCode> MfaRecoveryCodes { get; set; } = null!;
+
     // EF calls this while building the model. override replaces the base implementation,
     // and protected means only this class and subclasses can call it.
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -73,6 +77,7 @@ public class AppDbContext : DbContext
 
         // Unit price's key is product, unit, and price id together.
         modelBuilder.Entity<UnitPrice>().HasKey(u => new { u.ProductId, u.UomId, u.UnitPriceId });
+        modelBuilder.Entity<UnitPrice>().HasIndex(u => new { u.ProductId, u.UomId }).IsUnique();
 
         // A city has one province, and a province has many cities through Province.Cities.
         modelBuilder.Entity<City>().HasOne(c => c.Province).WithMany(p => p.Cities)
@@ -142,6 +147,9 @@ public class AppDbContext : DbContext
             // CustomerId is the foreign key. Deleting a customer does not delete orders.
             .HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.NoAction);
 
+        modelBuilder.Entity<Order>().HasOne(o => o.ShippingProvince).WithMany()
+            .HasForeignKey(o => o.ShippingProvinceId).OnDelete(DeleteBehavior.NoAction);
+
         // An order line belongs to one order, and the order exposes OrderDetail.
         modelBuilder.Entity<OrderDetail>().HasOne(d => d.Order).WithMany(o => o.OrderDetail)
             // Deleting an order cascade-deletes its lines, overriding the NoAction attribute.
@@ -171,6 +179,14 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<CartItem>().HasOne(c => c.Uom).WithMany()
             // UomId is the foreign key. Deleting a unit does not delete cart lines.
             .HasForeignKey(c => c.UomId).OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Notification>().HasOne(n => n.User).WithMany()
+            .HasForeignKey(n => n.UserId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Notification>().HasIndex(n => new { n.UserId, n.CreatedOn });
+        modelBuilder.Entity<MfaRecoveryCode>().HasOne<User>().WithMany()
+            .HasForeignKey(code => code.UserId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<MfaRecoveryCode>().HasIndex(code => new { code.UserId, code.CodeHash }).IsUnique();
+        modelBuilder.Entity<AreaAvailable>().HasIndex(a => new { a.ProductId, a.ProvinceId }).IsUnique();
     }
     // Ends OnModelCreating. The model is now frozen for this context type.
 }

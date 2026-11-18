@@ -14,10 +14,11 @@ public class CityEndpoints : ICarterModule
         var group = app.NewVersionedApi()
             .MapGroup("/api/v{version:apiVersion}/cities")
             .HasApiVersion(1.0)
-            .WithTags("Cities");
+            .WithTags("Cities")
+            .RequireAuthorization("Administrator");
 
-        group.MapGet("/", GetCitiesAsync);
-        group.MapGet("/{provinceId:guid}/{cityId:guid}", GetByIdAsync);
+        group.MapGet("/", GetCitiesAsync).AllowAnonymous();
+        group.MapGet("/{provinceId:guid}/{cityId:guid}", GetByIdAsync).AllowAnonymous();
         group.MapPost("/", CreateAsync);
         group.MapPut("/{provinceId:guid}/{cityId:guid}", UpdateAsync);
         group.MapDelete("/{provinceId:guid}/{cityId:guid}", DeleteAsync);
@@ -75,7 +76,8 @@ public class CityEndpoints : ICarterModule
                 TraceId = http.TraceIdentifier, Status = 400, Title = "Validation Error",
                 Detail = "CityName is required."
             });
-        if (!await db.Provinces.AnyAsync(p => p.ProvinceId == req.ProvinceId))
+        var province = await db.Provinces.FirstOrDefaultAsync(p => p.ProvinceId == req.ProvinceId);
+        if (province is null)
             return Results.BadRequest(new ErrorEnvelope
             {
                 TraceId = http.TraceIdentifier, Status = 400, Title = "Validation Error",
@@ -87,6 +89,7 @@ public class CityEndpoints : ICarterModule
             CityId = Guid.NewGuid(),
             CityName = req.CityName.Trim(),
             ZipCode = req.ZipCode ?? string.Empty,
+            Province = province,
             CreatedBy = string.IsNullOrWhiteSpace(req.CreatedBy) ? "system" : req.CreatedBy!,
             CreatedOn = DateTime.UtcNow
         };

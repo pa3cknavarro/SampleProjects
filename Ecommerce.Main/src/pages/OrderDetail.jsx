@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { ecommerceApi } from "@/api";
 import { ArrowLeft, Leaf } from "lucide-react";
 
 const STATUS_COLOR = {
@@ -20,9 +20,8 @@ export default function OrderDetail() {
   useEffect(() => {
     (async () => {
       try {
-        const all = await base44.entities.Order.list("-created_date", 200);
-        const o = all.find((x) => x.id === id);
-        setOrder(o || null);
+        const order = await ecommerceApi.getOrder(id);
+        setOrder(order);
       } catch (e) {
         setOrder(null);
       }
@@ -58,7 +57,7 @@ export default function OrderDetail() {
     );
   }
 
-  const items = Array.isArray(order.items) ? order.items : [];
+  const status = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"][order.orderStatus] || "Pending";
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -83,41 +82,41 @@ export default function OrderDetail() {
         <div className="rounded-2xl bg-white p-6 ring-1 ring-emerald-900/10">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-display text-2xl text-emerald-950">{order.order_number}</h1>
-              <p className="text-sm text-emerald-900/50">{order.order_date || "—"}</p>
+              <h1 className="font-display text-2xl text-emerald-950">{order.orderId}</h1>
+              <p className="text-sm text-emerald-900/50">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "—"}</p>
             </div>
             <span
               className={`rounded-full px-3 py-1 text-xs font-medium ${
-                STATUS_COLOR[order.status] || "bg-stone-100 text-stone-700"
+                STATUS_COLOR[status] || "bg-stone-100 text-stone-700"
               }`}
             >
-              {order.status || "Pending"}
+              {status}
             </span>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-emerald-900/50">Customer</p>
-              <p className="text-emerald-950">{order.customer || "—"}</p>
+              <p className="text-emerald-950">{order.customerId}</p>
             </div>
             <div>
               <p className="text-emerald-900/50">Total</p>
-              <p className="font-medium text-emerald-950">₱{(order.total || 0).toLocaleString()}</p>
+              <p className="font-medium text-emerald-950">₱{(order.grandTotal || 0).toLocaleString()}</p>
             </div>
           </div>
 
           <div className="mt-6">
             <p className="mb-2 text-[11px] uppercase tracking-widest text-emerald-900/50">Items</p>
             <div className="divide-y divide-emerald-900/5">
-              {items.length ? (
-                items.map((it, i) => (
-                  <div key={i} className="flex justify-between gap-4 py-3 text-sm">
+              {order.orderDetail.length ? (
+                order.orderDetail.map((item, index) => (
+                  <div key={`${item.productId}-${index}`} className="flex justify-between gap-4 py-3 text-sm">
                     <span className="min-w-0 flex-1 text-emerald-900/70">
-                      {it.quantity}× {it.product_name}{" "}
-                      {it.unit && <span className="text-emerald-900/40">({it.unit})</span>}
+                      {item.quantity}× {item.productName || item.productId}{" "}
+                      {item.unit && <span className="text-emerald-900/40">({item.unit})</span>}
                     </span>
                     <span className="shrink-0 text-emerald-950">
-                      ₱{((it.price || 0) * (it.quantity || 0)).toLocaleString()}
+                      ₱{(item.unitPrice * item.quantity).toLocaleString()}
                     </span>
                   </div>
                 ))
@@ -127,7 +126,7 @@ export default function OrderDetail() {
             </div>
             <div className="mt-4 flex justify-between border-t border-emerald-900/10 pt-4">
               <span className="font-medium text-emerald-950">Total</span>
-              <span className="font-medium text-emerald-950">₱{(order.total || 0).toLocaleString()}</span>
+              <span className="font-medium text-emerald-950">₱{(order.grandTotal || 0).toLocaleString()}</span>
             </div>
           </div>
         </div>

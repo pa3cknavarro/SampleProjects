@@ -1,26 +1,38 @@
 import React, { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { ecommerceApi } from "@/api";
 
 export default function Reports() {
   const [rows, setRows] = useState({ byClass: [], byCategory: [], byRole: [] });
+  const [error, setError] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        const [customers, products, users] = await Promise.all([
-          base44.entities.Customer.list("-created_date", 500),
-          base44.entities.Product.list("-created_date", 500),
-          base44.entities.AppUser.list("-created_date", 500),
+        const [customers, products, users, classes, categories] = await Promise.all([
+          ecommerceApi.admin.list("Customer", 500),
+          ecommerceApi.admin.list("Product", 500),
+          ecommerceApi.admin.list("AppUser", 500),
+          ecommerceApi.admin.list("CustomerClass", 500),
+          ecommerceApi.admin.list("Category", 500),
         ]);
-        const classes = ["Wholesale", "Retail", "VIP"];
-        const cats = ["Animal Feeds", "Seeds", "Fertilizers", "Farm Tools", "Pet Food", "Pet Care"];
-        const roles = ["User", "Agent", "Admin", "Super Admin"];
         setRows({
-          byClass: classes.map((c) => ({ label: c, count: customers.filter((x) => x.class === c).length })),
-          byCategory: cats.map((c) => ({ label: c, count: products.filter((x) => x.category === c).length })),
-          byRole: roles.map((r) => ({ label: r, count: users.filter((x) => x.role === r).length })),
+          byClass: classes.items.map((item) => ({
+            label: item.className,
+            count: customers.items.filter((customer) => customer.customerClassId === item.customerClassId).length,
+          })),
+          byCategory: categories.items.map((item) => ({
+            label: item.categoryName,
+            count: products.items.filter((product) => product.categoryId === item.categoryId).length,
+          })),
+          byRole: ["User", "Staff", "Admin"].map((role) => ({
+            label: role,
+            count: users.items.filter((user) => user.role === role).length,
+          })),
         });
-      } catch (e) {}
+        setError("");
+      } catch (err) {
+        setError(err.message || "Could not load report data.");
+      }
     })();
   }, []);
 
@@ -44,6 +56,7 @@ export default function Reports() {
     <div>
       <h2 className="mb-1 font-display text-2xl text-emerald-950">Reports</h2>
       <p className="mb-5 text-xs text-emerald-900/50">Breakdown of your records</p>
+      {error && <p className="mb-4 text-sm text-destructive" role="alert">{error}</p>}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Block title="Customers by Class" data={rows.byClass} />
         <Block title="Products by Category" data={rows.byCategory} />

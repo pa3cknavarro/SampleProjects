@@ -1,33 +1,40 @@
-import base44 from "@base44/vite-plugin"
 import react from '@vitejs/plugin-react'
 // Resolves filesystem aliases consistently across this repository's split source folders.
 import { fileURLToPath, URL } from 'node:url'
+import path from 'node:path'
 // Imports Vitest-aware config typing so test settings share the Vite config.
 import { defineConfig } from 'vitest/config'
 
+const projectRoot = fileURLToPath(new URL('.', import.meta.url))
+
 // https://vite.dev/config/
 export default defineConfig({
-  // Maps shared UI and application modules to their actual project locations.
-  resolve: {
-    // Checks the more specific component alias before the general source alias.
-    alias: [
-      // Resolves shared UI components stored beside src rather than inside src.
-      { find: '@/components', replacement: fileURLToPath(new URL('./components', import.meta.url)) },
-      // Resolves application libraries, pages, and feature modules under src.
-      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
-    ],
-  },
-  // Preserves the existing Base44 and React development integrations.
+  // Resolves application aliases and transforms React components.
   plugins: [
-    base44({
-      // Support for legacy code that imports the base44 SDK with @/integrations, @/entities, etc.
-      // can be removed if the code has been updated to use the new SDK imports from @base44/sdk
-      legacySDKImports: process.env.BASE44_LEGACY_SDK_IMPORTS === 'true',
-      hmrNotifier: true,
-      navigationNotifier: true,
-      analyticsTracker: true,
-      visualEditAgent: true
-    }),
+    {
+      name: 'ecommerce-main-path-alias',
+      enforce: 'post',
+      config(config) {
+        const existingAliases = config.resolve?.alias
+        const aliases = Array.isArray(existingAliases)
+          ? existingAliases
+          : Object.entries(existingAliases ?? {}).map(([find, replacement]) => ({ find, replacement }))
+        config.resolve = {
+          ...config.resolve,
+          alias: [
+            {
+              find: /^@\/components\//,
+              replacement: `${path.resolve(projectRoot, 'components')}${path.sep}`,
+            },
+            {
+              find: /^@\//,
+              replacement: `${path.resolve(projectRoot, 'src')}${path.sep}`,
+            },
+            ...aliases,
+          ],
+        }
+      },
+    },
     react(),
   ],
   // Configures API forwarding and test execution for the existing frontend.

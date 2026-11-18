@@ -14,7 +14,8 @@ public class CustomerClassEndpoints : ICarterModule
         var group = app.NewVersionedApi()
             .MapGroup("/api/v{version:apiVersion}/customer-classes")
             .HasApiVersion(1.0)
-            .WithTags("CustomerClasses");
+            .WithTags("CustomerClasses")
+            .RequireAuthorization("Administrator");
 
         group.MapGet("/", async ([AsParameters] PaginationParams query, AppDbContext db) =>
         {
@@ -42,6 +43,26 @@ public class CustomerClassEndpoints : ICarterModule
             db.CustomerClasses.Add(body);
             await db.SaveChangesAsync();
             return Results.Created($"/api/v1/customer-classes/{body.CustomerClassId}", body);
+        });
+
+        group.MapPut("/{id:guid}", async (Guid id, CustomerClass request, AppDbContext db) =>
+        {
+            var customerClass = await db.CustomerClasses.FindAsync(id);
+            if (customerClass is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(request.ClassName)) return Results.BadRequest(new { message = "ClassName is required." });
+            customerClass.ClassName = request.ClassName.Trim();
+            customerClass.Description = request.Description?.Trim() ?? string.Empty;
+            await db.SaveChangesAsync();
+            return Results.Ok(customerClass);
+        });
+
+        group.MapDelete("/{id:guid}", async (Guid id, AppDbContext db) =>
+        {
+            var customerClass = await db.CustomerClasses.FindAsync(id);
+            if (customerClass is null) return Results.NotFound();
+            db.CustomerClasses.Remove(customerClass);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
     }
 }

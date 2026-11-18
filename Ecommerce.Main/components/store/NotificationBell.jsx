@@ -1,105 +1,98 @@
-import React, { useState, useEffect } from "react";
-import { Bell } from "lucide-react";
-import { base44 } from "@/api/base44Client";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-} from "@/components/ui/dropdown-menu";
+import React, { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bell, Check } from "lucide-react";
+import { ecommerceApi } from "@/api";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function NotificationBell() {
-  const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
-
-  const load = async () => {
-    try {
-      const all = await base44.entities.Notification.list("-created_date", 50);
-      setItems(all);
-    } catch (e) {}
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const unread = items.filter((n) => !n.read).length;
-
-  const markAllRead = async () => {
-    const pending = items.filter((n) => !n.read);
-    if (!pending.length) return;
-    await Promise.all(
-      pending.map((n) => base44.entities.Notification.update(n.id, { read: true }))
-    );
-    load();
-  };
-
-  const clearAll = async () => {
-    try {
-      await base44.entities.Notification.deleteMany({});
-      setItems([]);
-    } catch (e) {}
-  };
+  const queryClient = useQueryClient();
+  const notificationsQuery = useQuery({
+    queryKey: ["notifications"],
+    queryFn: ecommerceApi.notifications.list,
+    refetchInterval: 60_000,
+  });
+  const markRead = useMutation({
+    mutationFn: ecommerceApi.notifications.markRead,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+  const markAllRead = useMutation({
+    mutationFn: ecommerceApi.notifications.markAllRead,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+  const notifications = notificationsQuery.data?.items ?? [];
+  const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
 
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (o && unread > 0) markAllRead();
-      }}
-    >
-      <DropdownMenuTrigger asChild>
-        <button className="relative rounded-full bg-emerald-900/5 p-2 text-emerald-900 transition hover:bg-emerald-900/10 sm:p-2.5">
-          <Bell className="h-4 w-4" />
-          {unread > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
-              {unread}
-            </span>
+    <>
+      <button
+        type="button"
+        className="relative rounded-full p-2 text-emerald-900/70 transition hover:bg-emerald-900/5"
+        aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
+        onClick={() => setOpen(true)}
+      >
+        <Bell className="h-4 w-4" />
+        {unreadCount > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-red-600 px-1 text-[10px] leading-4 text-white">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl text-emerald-950">Notifications</DialogTitle>
+          </DialogHeader>
+          {notificationsQuery.isError && (
+            <p className="text-sm text-destructive" role="alert">Could not load notifications.</p>
           )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 max-w-[calc(100vw-1.5rem)] p-0">
-        <div className="flex items-center justify-between border-b border-emerald-900/10 px-4 py-3">
-          <p className="font-display text-sm text-emerald-950">Notifications</p>
-          {items.length > 0 && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={markAllRead}
-                className="rounded-full px-2.5 py-1 text-[11px] font-medium text-emerald-900/70 transition hover:bg-emerald-900/5"
-              >
-                Read all
-              </button>
-              <button
-                onClick={clearAll}
-                className="rounded-full px-2.5 py-1 text-[11px] font-medium text-red-600 transition hover:bg-red-50"
-              >
-                Clear all
-              </button>
-            </div>
+          {notifications.length > 0 && unreadCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              disabled={markAllRead.isPending}
+              onClick={() => markAllRead.mutate()}
+            >
+              Mark all read
+            </Button>
           )}
-        </div>
-        <div className="max-h-80 overflow-y-auto">
-          {items.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-emerald-900/50">No notifications yet.</p>
-          ) : (
-            items.map((n) => (
-              <div key={n.id} className="border-b border-emerald-900/5 px-4 py-3 last:border-0">
-                <div className="flex items-start gap-2.5">
-                  <span
-                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                      n.read ? "bg-emerald-900/20" : "bg-amber-500"
-                    }`}
-                  />
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+            {notificationsQuery.isPending ? (
+              <p className="py-6 text-center text-sm text-emerald-900/50">Loading notifications…</p>
+            ) : notifications.length === 0 ? (
+              <p className="py-6 text-center text-sm text-emerald-900/50">You're all caught up.</p>
+            ) : notifications.map(notification => (
+              <article
+                key={notification.notificationId}
+                className={`rounded-xl p-4 ${notification.readOn ? "bg-stone-50" : "bg-emerald-50"}`}
+              >
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-emerald-950">{n.title}</p>
-                    <p className="text-xs leading-relaxed text-emerald-900/60">{n.message}</p>
+                    <h3 className="text-sm font-medium text-emerald-950">{notification.title}</h3>
+                    <p className="mt-1 text-sm text-emerald-900/70">{notification.message}</p>
+                    <time className="mt-2 block text-xs text-emerald-900/45" dateTime={notification.createdOn}>
+                      {new Date(notification.createdOn).toLocaleString()}
+                    </time>
                   </div>
+                  {!notification.readOn && (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-full p-2 text-emerald-800 hover:bg-emerald-900/10"
+                      aria-label="Mark notification read"
+                      disabled={markRead.isPending}
+                      onClick={() => markRead.mutate(notification.notificationId)}
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+              </article>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

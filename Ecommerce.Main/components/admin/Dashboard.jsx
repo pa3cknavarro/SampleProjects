@@ -1,30 +1,37 @@
 import React, { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { ecommerceApi } from "@/api";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Package, Users, MapPin, UserCheck } from "lucide-react";
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({});
+  const [stats, setStats] = useState({ products: 0, customers: 0, users: 0, provinces: 0 });
   const [byCategory, setByCategory] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        const [products, customers, appUsers, provinces] = await Promise.all([
-          base44.entities.Product.list("-created_date", 500),
-          base44.entities.Customer.list("-created_date", 500),
-          base44.entities.AppUser.list("-created_date", 500),
-          base44.entities.Province.list("-created_date", 500),
+        const [products, customers, appUsers, provinces, categories] = await Promise.all([
+          ecommerceApi.admin.list("Product", 500),
+          ecommerceApi.admin.list("Customer", 500),
+          ecommerceApi.admin.list("AppUser", 500),
+          ecommerceApi.admin.list("Province", 500),
+          ecommerceApi.admin.list("Category", 500),
         ]);
         setStats({
-          products: products.length,
-          customers: customers.length,
-          users: appUsers.length,
-          provinces: provinces.length,
+          products: products.totalCount,
+          customers: customers.totalCount,
+          users: appUsers.totalCount,
+          provinces: provinces.totalCount,
         });
-        const cats = ["Animal Feeds", "Seeds", "Fertilizers", "Farm Tools", "Pet Food", "Pet Care"];
-        setByCategory(cats.map((c) => ({ name: c, count: products.filter((p) => p.category === c).length })));
-      } catch (e) {}
+        setByCategory(categories.items.map((category) => ({
+          name: category.categoryName,
+          count: products.items.filter((product) => product.categoryId === category.categoryId).length,
+        })));
+        setError("");
+      } catch (err) {
+        setError(err.message || "Could not load dashboard data.");
+      }
     })();
   }, []);
 
@@ -39,6 +46,7 @@ export default function Dashboard() {
     <div>
       <h2 className="mb-1 font-display text-2xl text-emerald-950">Dashboard</h2>
       <p className="mb-5 text-xs text-emerald-900/50">Overview of your store</p>
+      {error && <p className="mb-4 text-sm text-destructive" role="alert">{error}</p>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((c) => {
           const Icon = c.icon;

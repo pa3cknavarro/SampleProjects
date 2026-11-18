@@ -24,10 +24,21 @@
     <PackageReference Include="Carter" Version="8.2.1" />
     <!-- Supplies OpenAPI document generation types that ship with ASP.NET Core 8. -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.34" />
-    <!-- EF Core provider that keeps the database in process memory. Data disappears when the process stops. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.11" />
+    <!-- Provides PostgreSQL persistence for the API's Entity Framework Core context. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <!-- Enables generating and applying EF Core schema migrations without shipping design tooling transitively. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- Aligns EF design-time Roslyn dependencies with Carter's analyzer version. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.7.0">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <!-- Swashbuckle generates the Swagger JSON and hosts the Swagger UI middleware. -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <!-- Provides secure password hashing for user credentials. -->
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="8.0.11" />
   </ItemGroup>
 
 <!-- Closes the project file. MSBuild reads nothing further from this file. -->

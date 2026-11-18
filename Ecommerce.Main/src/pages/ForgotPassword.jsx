@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { ecommerceApi } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,14 +11,17 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [resetUrl, setResetUrl] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await base44.auth.resetPasswordRequest(email);
-    } catch {
-      // Always show success regardless
+      const result = await ecommerceApi.auth.forgotPassword(email);
+      setResetUrl(result.resetUrl || "");
+    } catch (requestError) {
+      setError(requestError.message || "Could not request a password reset.");
     } finally {
       setLoading(false);
       setSent(true);
@@ -37,11 +40,13 @@ export default function ForgotPassword() {
       }
     >
       {sent ? (
-        <p className="text-sm text-foreground text-center">
-          If an account exists with that email, you'll receive a password reset link shortly.
-        </p>
+        <div className="space-y-3 text-center text-sm text-foreground">
+          <p>If an account exists with that email, you'll receive a password reset link shortly.</p>
+          {resetUrl && <a className="text-primary underline" href={resetUrl}>Open development reset link</a>}
+        </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive" role="alert">{error}</p>}
           <div className="space-y-2">
             <Label htmlFor="email">Email address</Label>
             <div className="relative">

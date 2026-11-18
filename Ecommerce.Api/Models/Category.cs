@@ -39,8 +39,7 @@ public class Category
     // ApplyFormatInEditMode true means the format is also used in editor templates.
     // {0:d} is the short-date pattern.
     [DisplayFormat(ApplyFormatInEditMode = true, DataFormatString = "{0:d}")]
-    // Nullable timestamp. DateTime.Now is local time, unlike other entities that use UtcNow.
-    // The value is captured when the object is constructed.
-    public DateTime? CreatedOn { get; set; } = DateTime.Now;
+    // Nullable UTC timestamp captured when the object is constructed.
+    public DateTime? CreatedOn { get; set; } = DateTime.UtcNow;
 }
 // Ends the Category entity. Products point at this row through CategoryId.

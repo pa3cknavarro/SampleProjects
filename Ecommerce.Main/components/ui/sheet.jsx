@@ -14,7 +14,8 @@ const SheetClose = SheetPrimitive.Close
 
 const SheetPortal = SheetPrimitive.Portal
 
-const SheetOverlay = React.forwardRef(({ className, ...props }, ref) => (
+/** @type {React.ForwardRefRenderFunction<React.ElementRef<typeof SheetPrimitive.Overlay>, React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>>} */
+const renderSheetOverlay = ({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
       "fixed inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
@@ -22,7 +23,8 @@ const SheetOverlay = React.forwardRef(({ className, ...props }, ref) => (
     )}
     {...props}
     ref={ref} />
-))
+  )
+const SheetOverlay = React.forwardRef(renderSheetOverlay)
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
@@ -44,7 +46,8 @@ const sheetVariants = cva(
   }
 )
 
-const SheetContent = React.forwardRef(({ side = "right", className, children, ...props }, ref) => (
+/** @type {React.ForwardRefRenderFunction<React.ElementRef<typeof SheetPrimitive.Content>, React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & import("class-variance-authority").VariantProps<typeof sheetVariants>>} */
+const renderSheetContent = ({ side = "right", className, children, ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
@@ -56,9 +59,11 @@ const SheetContent = React.forwardRef(({ side = "right", className, children, ..
       {children}
     </SheetPrimitive.Content>
   </SheetPortal>
-))
+  )
+const SheetContent = React.forwardRef(renderSheetContent)
 SheetContent.displayName = SheetPrimitive.Content.displayName
 
+/** @param {React.HTMLAttributes<HTMLDivElement>} props */
 const SheetHeader = ({
   className,
   ...props
@@ -69,6 +74,7 @@ const SheetHeader = ({
 )
 SheetHeader.displayName = "SheetHeader"
 
+/** @param {React.HTMLAttributes<HTMLDivElement>} props */
 const SheetFooter = ({
   className,
   ...props
@@ -79,20 +85,24 @@ const SheetFooter = ({
 )
 SheetFooter.displayName = "SheetFooter"
 
-const SheetTitle = React.forwardRef(({ className, ...props }, ref) => (
+/** @type {React.ForwardRefRenderFunction<React.ElementRef<typeof SheetPrimitive.Title>, React.ComponentPropsWithoutRef<typeof SheetPrimitive.Title>>} */
+const renderSheetTitle = ({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
     className={cn("text-lg font-semibold text-foreground", className)}
     {...props} />
-))
+  )
+const SheetTitle = React.forwardRef(renderSheetTitle)
 SheetTitle.displayName = SheetPrimitive.Title.displayName
 
-const SheetDescription = React.forwardRef(({ className, ...props }, ref) => (
+/** @type {React.ForwardRefRenderFunction<React.ElementRef<typeof SheetPrimitive.Description>, React.ComponentPropsWithoutRef<typeof SheetPrimitive.Description>>} */
+const renderSheetDescription = ({ className, ...props }, ref) => (
   <SheetPrimitive.Description
     ref={ref}
     className={cn("text-sm text-muted-foreground", className)}
     {...props} />
-))
+  )
+const SheetDescription = React.forwardRef(renderSheetDescription)
 SheetDescription.displayName = SheetPrimitive.Description.displayName
 
 export {

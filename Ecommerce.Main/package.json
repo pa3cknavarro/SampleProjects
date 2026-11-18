@@ -1,5 +1,5 @@
 {
-  "name": "base44-app",
+  "name": "ecommerce-main",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,8 +14,6 @@
     "generate:api": "openapi-typescript http://127.0.0.1:5001/swagger/v1/swagger.json --output src/services/generated/ecommerce-api.d.ts"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.62",
-    "@base44/vite-plugin": "^1.0.52",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
     "@radix-ui/react-accordion": "^1.2.3",

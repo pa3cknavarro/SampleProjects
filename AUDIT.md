@@ -11,16 +11,15 @@ All four projects compile successfully on .NET 8.
 ## Known limitations (by design / demo scope)
 | Item | Impact | Production guidance |
 |------|--------|---------------------|
-| EF InMemory | Data lost on restart | Use SQL Server / PostgreSQL |
+| PostgreSQL with EF Core migrations | Pending schema changes apply at API startup | Back up the database before production migrations |
 | In-process IdempotencyStore | Not shared across instances | Redis or DB with TTL |
-| User passwords plain text | Insecure | Hash with ASP.NET Identity / bcrypt |
-| Rate limit by IP only | Proxies share IP | Key by API key or user id |
+| Registration/password-reset challenges are process-local | Challenges are lost on restart | Move workflow state to persistent shared storage |
+| Rate limits use client IP | Proxies and NAT can share an IP | Review limits and forwarded-header configuration for deployment |
 | JSON WriteIndented | Slightly larger payloads | Disable in production |
-| No integration test suite | Regressions possible | Add WebApplicationFactory tests |
 
 ## Performance notes
 - List endpoints use `AsNoTracking()` (good for read-only queries).
-- Pagination is applied after filters; ensure DB indexes on search columns when moving off InMemory.
+- Pagination is applied after filters; add indexes on search columns as PostgreSQL data grows.
 - Order GET uses `Include(OrderDetail)` – fine for single orders; avoid unbounded includes on lists.
 - HttpClient is factory-managed (socket reuse) in client/web/console.
 

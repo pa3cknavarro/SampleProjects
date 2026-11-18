@@ -11,7 +11,7 @@ export const CATEGORIES = [
   { name: "Pet Care", icon: Bath },
 ];
 
-export default function CategoryList({ active, onSelect, vertical }) {
+export default function CategoryList({ active, onSelect, vertical = false }) {
   return (
     <nav className={`${vertical ? "flex-col" : "flex lg:flex-col"} gap-2 ${vertical ? "" : "overflow-x-auto lg:overflow-visible pb-2 lg:pb-0"}`}>
       {CATEGORIES.map(({ name, icon: Icon }) => {
