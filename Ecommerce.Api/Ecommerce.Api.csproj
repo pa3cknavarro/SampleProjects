@@ -26,7 +26,7 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.34" />
     <!-- Provides PostgreSQL persistence for the API's Entity Framework Core context. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
-    <!-- Enables generating and applying EF Core schema migrations without shipping design tooling transitively. -->
+    <!-- Provides EF tooling support for generating and applying schema migrations. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

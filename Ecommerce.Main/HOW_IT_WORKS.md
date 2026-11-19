@@ -18,7 +18,7 @@ flowchart LR
 
 ## Authentication
 
-The API handles registration, email verification, login, logout, current-user lookup, password changes, password recovery, and TOTP two-factor authentication with one-time recovery codes. Sessions use an HttpOnly cookie. The Vite proxy adds the demo `X-Api-Key` header on local development requests so browser code does not contain the API key. Administrator endpoints additionally require the Admin role. Notifications are stored in the API and shown in the storefront notification center.
+The API handles registration, email verification, login, logout, current-user lookup, password changes, and password recovery. Sessions use an HttpOnly cookie. The Vite proxy adds the demo `X-Api-Key` header on local development requests so browser code does not contain the API key. Administrator endpoints additionally require the Admin role. Notifications are stored in the API and shown in the storefront notification center.
 
 In Development, verification codes and password-reset links are returned to support local testing. Outside Development, SMTP must be configured. Credential challenges are currently stored in process memory.
 

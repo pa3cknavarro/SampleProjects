@@ -60,8 +60,6 @@ public class AppDbContext : DbContext
 
     public DbSet<Notification> Notifications { get; set; } = null!;
 
-    public DbSet<MfaRecoveryCode> MfaRecoveryCodes { get; set; } = null!;
-
     // EF calls this while building the model. override replaces the base implementation,
     // and protected means only this class and subclasses can call it.
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -183,9 +181,6 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Notification>().HasOne(n => n.User).WithMany()
             .HasForeignKey(n => n.UserId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Notification>().HasIndex(n => new { n.UserId, n.CreatedOn });
-        modelBuilder.Entity<MfaRecoveryCode>().HasOne<User>().WithMany()
-            .HasForeignKey(code => code.UserId).OnDelete(DeleteBehavior.Cascade);
-        modelBuilder.Entity<MfaRecoveryCode>().HasIndex(code => new { code.UserId, code.CodeHash }).IsUnique();
         modelBuilder.Entity<AreaAvailable>().HasIndex(a => new { a.ProductId, a.ProvinceId }).IsUnique();
     }
     // Ends OnModelCreating. The model is now frozen for this context type.

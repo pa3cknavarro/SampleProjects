@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, User, Package, KeyRound, ShieldCheck, Loader2, ChevronRight, Check } from "lucide-react";
+import { ChevronDown, User, Package, KeyRound, Loader2, ChevronRight, Check } from "lucide-react";
 
 const STATUS_COLOR = {
   Pending: "bg-amber-100 text-amber-700",
@@ -33,62 +33,12 @@ export default function CustomerMenu({ user, customer, orders, onCustomerUpdate,
   const [phone, setPhone] = useState("");
   const [acctSaving, setAcctSaving] = useState(false);
   const [acctDone, setAcctDone] = useState(false);
-  const [mfaEnabled, setMfaEnabled] = useState(false);
-  const [mfaSecret, setMfaSecret] = useState("");
-  const [mfaCode, setMfaCode] = useState("");
-  const [mfaCurrentPassword, setMfaCurrentPassword] = useState("");
-  const [mfaRecoveryCodes, setMfaRecoveryCodes] = useState([]);
-  const [mfaError, setMfaError] = useState("");
-  const [mfaBusy, setMfaBusy] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     setEmail(customer?.emailAddress || "");
     setPhone(customer?.contactNumber || "");
   }, [customer]);
-
-  useEffect(() => {
-    if (open !== "mfa") return;
-    ecommerceApi.auth.mfaStatus()
-      .then(status => setMfaEnabled(status.enabled))
-      .catch(error => setMfaError(error.message || "Could not load security status."));
-  }, [open]);
-
-  const startMfaSetup = async () => {
-    setMfaError("");
-    setMfaBusy(true);
-    try {
-      const setup = await ecommerceApi.auth.setupMfa(mfaCurrentPassword);
-      setMfaSecret(setup.secret);
-      setMfaCurrentPassword("");
-    } catch (error) {
-      setMfaError(error.message || "Could not start setup.");
-    } finally {
-      setMfaBusy(false);
-    }
-  };
-
-  const verifyMfaCode = async () => {
-    setMfaError("");
-    if (!/^\d{6}$/.test(mfaCode)) {
-      setMfaError("Enter the 6-digit code from your authenticator app.");
-      return;
-    }
-    setMfaBusy(true);
-    try {
-      const result = mfaEnabled
-        ? await ecommerceApi.auth.disableMfa(mfaCode)
-        : await ecommerceApi.auth.enableMfa(mfaCode);
-      setMfaEnabled(result.enabled);
-      setMfaRecoveryCodes(result.recoveryCodes ?? []);
-      setMfaSecret("");
-      setMfaCode("");
-    } catch (error) {
-      setMfaError(error.message || "The code could not be verified.");
-    } finally {
-      setMfaBusy(false);
-    }
-  };
 
   const changePassword = async () => {
     setPwErr("");
@@ -163,9 +113,6 @@ export default function CustomerMenu({ user, customer, orders, onCustomerUpdate,
           <DropdownMenuItem onClick={() => setOpen("password")}>
             <KeyRound className="mr-2 h-4 w-4" /> Change Password
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpen("mfa")}>
-            <ShieldCheck className="mr-2 h-4 w-4" /> Account Security
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onLogout()}>
             Sign out
           </DropdownMenuItem>
@@ -230,84 +177,6 @@ export default function CustomerMenu({ user, customer, orders, onCustomerUpdate,
             <p className="py-6 text-center text-sm text-emerald-900/50">
               No customer record linked to this account.
             </p>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={open === "mfa"} onOpenChange={(value) => {
-        if (!value) {
-          setOpen(null);
-          setMfaSecret("");
-          setMfaCode("");
-          setMfaCurrentPassword("");
-          setMfaRecoveryCodes([]);
-          setMfaError("");
-        }
-      }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl text-emerald-950">Account Security</DialogTitle>
-          </DialogHeader>
-          {mfaError && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive" role="alert">{mfaError}</p>}
-          {mfaRecoveryCodes.length > 0 ? (
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-emerald-950">Save these recovery codes now. Each code works once and cannot be shown again.</p>
-              <div className="grid grid-cols-2 gap-2 rounded-lg bg-stone-100 p-3 font-mono text-sm">
-                {mfaRecoveryCodes.map(code => <code key={code}>{code}</code>)}
-              </div>
-              <Button className="w-full" onClick={() => setMfaRecoveryCodes([])}>I saved these codes</Button>
-            </div>
-          ) : mfaEnabled ? (
-            <div className="space-y-4">
-              <p className="text-sm text-emerald-900/70">Two-factor authentication is enabled for your account.</p>
-              <Label htmlFor="disable-mfa-code">Enter an authenticator code to disable it</Label>
-              <Input
-                id="disable-mfa-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={mfaCode}
-                onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              />
-              <Button className="w-full" variant="outline" onClick={verifyMfaCode} disabled={mfaBusy}>
-                {mfaBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Disable two-factor authentication
-              </Button>
-            </div>
-          ) : mfaSecret ? (
-            <div className="space-y-4">
-              <p className="text-sm text-emerald-900/70">Add this key to an authenticator app, then enter its current 6-digit code.</p>
-              <code className="block break-all rounded-lg bg-stone-100 p-3 text-sm">{mfaSecret}</code>
-              <Label htmlFor="enable-mfa-code">Authenticator code</Label>
-              <Input
-                id="enable-mfa-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={mfaCode}
-                onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              />
-              <Button className="w-full" onClick={verifyMfaCode} disabled={mfaBusy}>
-                {mfaBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Verify and enable
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-emerald-900/70">Require an authenticator code in addition to your password when signing in.</p>
-              <Label htmlFor="mfa-current-password">Current password</Label>
-              <Input
-                id="mfa-current-password"
-                type="password"
-                autoComplete="current-password"
-                value={mfaCurrentPassword}
-                onChange={(event) => setMfaCurrentPassword(event.target.value)}
-              />
-              <Button className="w-full" onClick={startMfaSetup} disabled={mfaBusy || !mfaCurrentPassword}>
-                {mfaBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Set up authenticator
-              </Button>
-            </div>
           )}
         </DialogContent>
       </Dialog>

@@ -79,8 +79,6 @@ namespace Ecommerce.Api.Data.Migrations
                     Email = table.Column<string>(type: "text", nullable: false),
                     PasswordHash = table.Column<string>(type: "text", nullable: false),
                     CustomerId = table.Column<Guid>(type: "uuid", nullable: true),
-                    MfaEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    MfaSecretProtected = table.Column<string>(type: "text", nullable: true),
                     Role = table.Column<int>(type: "integer", nullable: false),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedBy = table.Column<string>(type: "text", nullable: false),
@@ -134,25 +132,6 @@ namespace Ecommerce.Api.Data.Migrations
                         column: x => x.ProvinceId,
                         principalTable: "Provinces",
                         principalColumn: "ProvinceId");
-                });
-
-            migrationBuilder.CreateTable(
-                name: "MfaRecoveryCodes",
-                columns: table => new
-                {
-                    RecoveryCodeId = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    CodeHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_MfaRecoveryCodes", x => x.RecoveryCodeId);
-                    table.ForeignKey(
-                        name: "FK_MfaRecoveryCodes_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -438,12 +417,6 @@ namespace Ecommerce.Api.Data.Migrations
                 columns: new[] { "ProvinceId", "CityId", "BarangayId" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MfaRecoveryCodes_UserId_CodeHash",
-                table: "MfaRecoveryCodes",
-                columns: new[] { "UserId", "CodeHash" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Notifications_UserId_CreatedOn",
                 table: "Notifications",
                 columns: new[] { "UserId", "CreatedOn" });
@@ -498,9 +471,6 @@ namespace Ecommerce.Api.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "CartItems");
-
-            migrationBuilder.DropTable(
-                name: "MfaRecoveryCodes");
 
             migrationBuilder.DropTable(
                 name: "Notifications");

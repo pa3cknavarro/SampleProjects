@@ -28,7 +28,7 @@ flowchart LR
     EF --> Store[PostgreSQL database]
 ```
 
-The API persists domain data in PostgreSQL through Npgsql. Configure `ConnectionStrings__EcommerceDb`; Development falls back to `Host=localhost;Database=ecommerce`, and non-Development environments require an explicit connection string. Pending EF Core migrations run at startup. `DataProtection__KeyRingPath` configures the persistent key ring used to protect MFA secrets and authentication cookies. Existing SQLite files are not imported automatically.
+The API persists domain data in PostgreSQL through Npgsql. Configure `ConnectionStrings__EcommerceDb` before starting the API; startup reports a clear error if it is missing. Pending EF Core migrations run at startup. `DataProtection__KeyRingPath` configures the persistent key ring used to protect authentication cookies.
 
 ## Integrated features
 
@@ -46,7 +46,6 @@ The API persists domain data in PostgreSQL through Npgsql. Configure `Connection
 - Responsive desktop and mobile storefront layout
 - API-backed storefront available at `/store`
 - Email/password registration, verification, login, password recovery, and cookie sessions
-- TOTP multi-factor authentication with one-time recovery codes
 - Persistent in-app notifications
 - Configurable unit prices and per-province product availability, enforced at checkout
 - Administrator-only management endpoints for backend entities

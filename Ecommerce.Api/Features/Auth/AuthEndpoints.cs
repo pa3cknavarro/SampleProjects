@@ -1,8 +1,7 @@
 namespace Ecommerce.Api.Features.Auth;
 
-using System.ComponentModel.DataAnnotations;
-using System.Security.Cryptography;
 using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 using Asp.Versioning;
 using Carter;
 using Ecommerce.Api.Common;
@@ -32,10 +31,6 @@ public sealed class AuthEndpoints : ICarterModule
         group.MapGet("/me", GetCurrentUserAsync);
         group.MapPost("/logout", (Delegate)LogoutAsync);
         group.MapPost("/change-password", ChangePasswordAsync);
-        group.MapGet("/mfa", GetMfaStatusAsync);
-        group.MapPost("/mfa/setup", SetupMfaAsync);
-        group.MapPost("/mfa/enable", EnableMfaAsync).RequireRateLimiting("AuthSensitive");
-        group.MapPost("/mfa/disable", DisableMfaAsync).RequireRateLimiting("AuthSensitive");
     }
 
     private static async Task<IResult> RegisterAsync(
@@ -166,7 +161,6 @@ public sealed class AuthEndpoints : ICarterModule
         LoginRequest request,
         AppDbContext db,
         IPasswordHasher<User> passwordHasher,
-        TotpService totpService,
         HttpContext http,
         CancellationToken cancellationToken)
     {
@@ -185,179 +179,9 @@ public sealed class AuthEndpoints : ICarterModule
             return Error(http, 401, "Unauthorized", "Username or password is incorrect.");
         }
 
-        if (user.MfaEnabled && !IsValidMfaCode(user, request.TwoFactorCode, totpService))
-        {
-            if (!await TryConsumeRecoveryCodeAsync(db, user.Id, request.TwoFactorCode, cancellationToken))
-            {
-                return Results.Json(new
-                {
-                    status = StatusCodes.Status401Unauthorized,
-                    title = "Two-factor verification required",
-                    detail = "Enter an authenticator or unused recovery code.",
-                    requiresTwoFactor = true
-                }, statusCode: StatusCodes.Status401Unauthorized);
-            }
-
-        }
-
         await SignInAsync(http, user, request.RememberMe);
         return Results.Ok(ToResponse(user));
     }
-
-    private static async Task<IResult> GetMfaStatusAsync(
-        ClaimsPrincipal principal,
-        AppDbContext db,
-        CancellationToken cancellationToken)
-    {
-        var user = await FindCurrentUserAsync(principal, db, cancellationToken);
-        return user is null ? Results.Unauthorized() : Results.Ok(new { enabled = user.MfaEnabled });
-    }
-
-    private static async Task<IResult> SetupMfaAsync(
-        MfaSetupRequest request,
-        ClaimsPrincipal principal,
-        AppDbContext db,
-        IPasswordHasher<User> passwordHasher,
-        TotpService totpService,
-        CancellationToken cancellationToken)
-    {
-        var user = await FindCurrentUserAsync(principal, db, cancellationToken);
-        if (user is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        if (user.MfaEnabled)
-        {
-            return Results.Conflict(new { message = "Two-factor authentication is already enabled." });
-        }
-
-        if (string.IsNullOrWhiteSpace(request.CurrentPassword))
-        {
-            return Results.BadRequest(new { message = "Current password is required." });
-        }
-
-        if (passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
-        {
-            return Results.BadRequest(new { message = "Current password is incorrect." });
-        }
-
-        var secret = totpService.CreateSecret();
-        user.MfaSecretProtected = totpService.Protect(secret);
-        await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new
-        {
-            secret,
-            provisioningUri = totpService.CreateProvisioningUri(user.Email, secret)
-        });
-    }
-
-    private static async Task<IResult> EnableMfaAsync(
-        OneTimeCodeRequest request,
-        ClaimsPrincipal principal,
-        AppDbContext db,
-        TotpService totpService,
-        CancellationToken cancellationToken)
-    {
-        var user = await FindCurrentUserAsync(principal, db, cancellationToken);
-        if (user is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        if (user.MfaSecretProtected is null || !IsValidMfaCode(user, request.Code, totpService))
-        {
-            return Results.BadRequest(new { message = "The code is invalid or setup has not been started." });
-        }
-
-        user.MfaEnabled = true;
-        var recoveryCodes = Enumerable.Range(0, 10)
-            .Select(_ => Convert.ToHexString(RandomNumberGenerator.GetBytes(10)))
-            .ToArray();
-        db.MfaRecoveryCodes.AddRange(recoveryCodes.Select(code => new MfaRecoveryCode
-        {
-            RecoveryCodeId = Guid.NewGuid(),
-            UserId = user.Id,
-            CodeHash = HashRecoveryCode(code)
-        }));
-        await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { enabled = true, recoveryCodes });
-    }
-
-    private static async Task<IResult> DisableMfaAsync(
-        OneTimeCodeRequest request,
-        ClaimsPrincipal principal,
-        AppDbContext db,
-        TotpService totpService,
-        CancellationToken cancellationToken)
-    {
-        var user = await FindCurrentUserAsync(principal, db, cancellationToken);
-        if (user is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        if (!user.MfaEnabled || !IsValidMfaCode(user, request.Code, totpService))
-        {
-            return Results.BadRequest(new { message = "The code is invalid or two-factor authentication is not enabled." });
-        }
-
-        user.MfaEnabled = false;
-        user.MfaSecretProtected = null;
-        var recoveryCodes = await db.MfaRecoveryCodes
-            .Where(code => code.UserId == user.Id)
-            .ToListAsync(cancellationToken);
-        db.MfaRecoveryCodes.RemoveRange(recoveryCodes);
-        await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { enabled = false });
-    }
-
-    private static async Task<User?> FindCurrentUserAsync(
-        ClaimsPrincipal principal,
-        AppDbContext db,
-        CancellationToken cancellationToken)
-    {
-        return Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
-            ? await db.Users.FirstOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken)
-            : null;
-    }
-
-    private static bool IsValidMfaCode(User user, string? code, TotpService totpService)
-    {
-        if (user.MfaSecretProtected is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            return totpService.Verify(totpService.Unprotect(user.MfaSecretProtected), code);
-        }
-        catch (System.Security.Cryptography.CryptographicException)
-        {
-            return false;
-        }
-    }
-
-    private static async Task<bool> TryConsumeRecoveryCodeAsync(
-        AppDbContext db,
-        Guid userId,
-        string? code,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            return false;
-        }
-
-        var hash = HashRecoveryCode(code);
-        return await db.MfaRecoveryCodes
-            .Where(item => item.UserId == userId && item.CodeHash == hash)
-            .ExecuteDeleteAsync(cancellationToken) == 1;
-    }
-
-    private static string HashRecoveryCode(string code) =>
-        Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(code.Trim().ToUpperInvariant())));
 
     private static async Task<IResult> ForgotPasswordAsync(
         EmailRequest request,
@@ -559,9 +383,7 @@ public sealed class AuthEndpoints : ICarterModule
 public sealed record RegisterRequest(string Email, string Password, string CompanyName);
 public sealed record VerifyEmailRequest(string Email, string Code);
 public sealed record EmailRequest(string Email);
-public sealed record LoginRequest(string Username, string Password, bool RememberMe = false, string? TwoFactorCode = null);
-public sealed record OneTimeCodeRequest(string Code);
-public sealed record MfaSetupRequest(string CurrentPassword);
+public sealed record LoginRequest(string Username, string Password, bool RememberMe = false);
 public sealed record ResetPasswordRequest(string Token, string NewPassword);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
