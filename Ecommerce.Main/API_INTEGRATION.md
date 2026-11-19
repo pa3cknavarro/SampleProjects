@@ -28,7 +28,6 @@
 | Customer classes | GET/POST/etc. | `/api/v1/customer-classes` | Admin management | Integrated |
 | Areas available | GET/POST/etc. | `/api/v1/areas-available` | Admin availability by province | Integrated |
 | Notifications | GET/POST | `/api/v1/notifications` | In-app notification center | Integrated |
-| MFA | POST | `/api/v1/auth/mfa/*` | Account-security settings and login challenge | Integrated |
 | Provinces/cities/barangays | POST/PUT/DELETE | Related routes | Admin location management | Integrated |
 | Categories/products | POST/PUT/DELETE | Related routes | Admin catalog management | Integrated |
 

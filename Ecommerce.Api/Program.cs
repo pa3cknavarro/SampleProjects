@@ -27,12 +27,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 var ecommerceConnectionString = builder.Configuration.GetConnectionString("EcommerceDb");
 if (string.IsNullOrWhiteSpace(ecommerceConnectionString))
-{
-    if (!builder.Environment.IsDevelopment())
-        throw new InvalidOperationException("Set the ConnectionStrings:EcommerceDb PostgreSQL connection string.");
-
-    ecommerceConnectionString = "Host=localhost;Database=ecommerce";
-}
+    throw new InvalidOperationException(
+        "PostgreSQL connection string is missing. Configure ConnectionStrings:EcommerceDb before starting Ecommerce.Api.");
 
 // Registers the durable PostgreSQL database context.
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -50,7 +46,6 @@ Directory.CreateDirectory(dataProtectionPath);
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath))
     .SetApplicationName("Ecommerce.Api");
-builder.Services.AddSingleton<TotpService>();
 // Hashes account passwords using ASP.NET Core's versioned password-hashing format.
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 // Stores short-lived registration and password-recovery challenges in process memory.
@@ -235,12 +230,7 @@ using (var scope = app.Services.CreateScope())
     // Resolves the EF Core context used to inspect and seed data.
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     // Applies pending PostgreSQL schema migrations before the API serves requests.
-    // Test hosts use SQLite's model-created schema because committed migrations target PostgreSQL.
-    if (builder.Environment.IsDevelopment() &&
-        builder.Configuration.GetValue<bool>("Database:EnsureCreated"))
-        db.Database.EnsureCreated();
-    else
-        db.Database.Migrate();
+    db.Database.Migrate();
     // Seeds demo data only when the location database is empty.
     if (!db.Provinces.Any())
     {

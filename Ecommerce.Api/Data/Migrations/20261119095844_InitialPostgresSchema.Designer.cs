@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Ecommerce.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261118132616_InitialPostgresSchema")]
+    [Migration("20261119095844_InitialPostgresSchema")]
     partial class InitialPostgresSchema
     {
         /// <inheritdoc />
@@ -249,28 +249,6 @@ namespace Ecommerce.Api.Data.Migrations
                     b.HasKey("CustomerClassId");
 
                     b.ToTable("CustomerClasses");
-                });
-
-            modelBuilder.Entity("Ecommerce.Api.Models.MfaRecoveryCode", b =>
-                {
-                    b.Property<Guid>("RecoveryCodeId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CodeHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("RecoveryCodeId");
-
-                    b.HasIndex("UserId", "CodeHash")
-                        .IsUnique();
-
-                    b.ToTable("MfaRecoveryCodes");
                 });
 
             modelBuilder.Entity("Ecommerce.Api.Models.Notification", b =>
@@ -546,12 +524,6 @@ namespace Ecommerce.Api.Data.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("MfaEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("MfaSecretProtected")
-                        .HasColumnType("text");
-
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
@@ -674,15 +646,6 @@ namespace Ecommerce.Api.Data.Migrations
                     b.Navigation("CustomerClass");
 
                     b.Navigation("Province");
-                });
-
-            modelBuilder.Entity("Ecommerce.Api.Models.MfaRecoveryCode", b =>
-                {
-                    b.HasOne("Ecommerce.Api.Models.User", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Ecommerce.Api.Models.Notification", b =>

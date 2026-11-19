@@ -116,7 +116,6 @@ export interface ApiError {
   title: string;
   // Stores the safe error detail shown to users.
   detail: string;
-  requiresTwoFactor?: boolean;
 }
 
 // Converts an API error envelope into a normal JavaScript Error.
@@ -248,7 +247,7 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000):
 export const ecommerceApi = {
   auth: {
     me: () => request<AuthUser>(`${API_BASE_URL}/auth/me`),
-    login: (credentials: { username: string; password: string; rememberMe?: boolean; twoFactorCode?: string }) =>
+    login: (credentials: { username: string; password: string; rememberMe?: boolean }) =>
       request<AuthUser>(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         body: JSON.stringify(credentials),
@@ -284,19 +283,6 @@ export const ecommerceApi = {
         body: JSON.stringify(credentials),
       }),
     logout: () => request<void>(`${API_BASE_URL}/auth/logout`, { method: 'POST' }),
-    mfaStatus: () => request<{ enabled: boolean }>(`${API_BASE_URL}/auth/mfa`),
-    setupMfa: (currentPassword: string) => request<{ secret: string; provisioningUri: string }>(`${API_BASE_URL}/auth/mfa/setup`, {
-      method: 'POST',
-      body: JSON.stringify({ currentPassword }),
-    }),
-    enableMfa: (code: string) => request<{ enabled: boolean; recoveryCodes: string[] }>(`${API_BASE_URL}/auth/mfa/enable`, {
-      method: 'POST',
-      body: JSON.stringify({ code }),
-    }),
-    disableMfa: (code: string) => request<{ enabled: boolean }>(`${API_BASE_URL}/auth/mfa/disable`, {
-      method: 'POST',
-      body: JSON.stringify({ code }),
-    }),
   },
   notifications: {
     list: () => request<{

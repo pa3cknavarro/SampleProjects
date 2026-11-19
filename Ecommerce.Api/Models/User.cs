@@ -48,10 +48,6 @@ public class User
     // Optional customer account linked to this user.
     public Guid? CustomerId { get; set; }
 
-    public bool MfaEnabled { get; set; }
-
-    public string? MfaSecretProtected { get; set; }
-
     // A role value is required.
     [Required(ErrorMessage = "Role is required.")]
     // UI caption.

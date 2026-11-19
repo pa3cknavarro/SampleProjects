@@ -1,16 +1,10 @@
 // Imports JSON support for decoding paginated API responses.
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Buffers.Binary;
-using System.Security.Cryptography;
 // Imports the test HTTP factory used to start the API in memory.
-using Ecommerce.Api.Data;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 // Imports xUnit test attributes and assertions.
 using Xunit;
 
@@ -28,7 +22,7 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
     }
 
     // Verifies that the versioned products route accepts the configured API key.
-    [Fact]
+    [PostgreSqlFact]
     public async Task ProductsEndpointReturnsPaginatedPayload()
     {
         // Creates an isolated HTTP client whose host is the test API.
@@ -49,7 +43,7 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
     }
 
     // Verifies that unauthenticated API requests receive a controlled 401 envelope.
-    [Fact]
+    [PostgreSqlFact]
     public async Task ProductsEndpointRejectsMissingApiKey()
     {
         // Creates an HTTP client without authentication headers.
@@ -60,7 +54,7 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    [Fact]
+    [PostgreSqlFact]
     public async Task RegistrationVerificationAndPasswordResetUseHashedCookieSessions()
     {
         var client = _factory.CreateClient();
@@ -86,18 +80,6 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
             code = verification.VerificationCode
         });
         verified.EnsureSuccessStatusCode();
-
-        var mfaSetup = await client.PostAsJsonAsync("/api/v1/auth/mfa/setup", new { currentPassword = initialPassword });
-        mfaSetup.EnsureSuccessStatusCode();
-        var mfaSetupPayload = await mfaSetup.Content.ReadFromJsonAsync<MfaSetupPayload>();
-        Assert.NotNull(mfaSetupPayload?.Secret);
-        var mfaEnabled = await client.PostAsJsonAsync("/api/v1/auth/mfa/enable", new
-        {
-            code = CreateTotp(mfaSetupPayload.Secret)
-        });
-        mfaEnabled.EnsureSuccessStatusCode();
-        var recoveryCodes = await mfaEnabled.Content.ReadFromJsonAsync<MfaEnabledPayload>();
-        Assert.Equal(10, recoveryCodes?.RecoveryCodes.Count);
 
         var profile = await client.GetFromJsonAsync<AuthUserPayload>("/api/v1/auth/me");
         Assert.Equal(email, profile?.Email);
@@ -259,47 +241,22 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
         var loggedOutProfile = await client.GetAsync("/api/v1/auth/me");
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, loggedOutProfile.StatusCode);
 
-        var mfaRequiredLogin = await client.PostAsJsonAsync("/api/v1/auth/login", new
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new
         {
             username = email,
             password = replacementPassword
         });
-        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, mfaRequiredLogin.StatusCode);
-        var mfaRequired = await mfaRequiredLogin.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(mfaRequired.GetProperty("requiresTwoFactor").GetBoolean());
-        var recoveryCode = recoveryCodes!.RecoveryCodes[0];
-        var recoveryLogin = await client.PostAsJsonAsync("/api/v1/auth/login", new
-        {
-            username = email,
-            password = replacementPassword,
-            twoFactorCode = recoveryCode
-        });
-        recoveryLogin.EnsureSuccessStatusCode();
-        await client.PostAsync("/api/v1/auth/logout", content: null);
-        var reusedRecoveryCode = await client.PostAsJsonAsync("/api/v1/auth/login", new
-        {
-            username = email,
-            password = replacementPassword,
-            twoFactorCode = recoveryCode
-        });
-        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, reusedRecoveryCode.StatusCode);
-        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new
-        {
-            username = email,
-            password = replacementPassword,
-            twoFactorCode = CreateTotp(mfaSetupPayload!.Secret)
-        });
         login.EnsureSuccessStatusCode();
     }
 
-    [Fact]
-    public async Task SqliteDataSurvivesAHostRestart()
+    [PostgreSqlFact]
+    public async Task PostgresDataSurvivesAHostRestart()
     {
-        var databasePath = Path.Combine(Path.GetTempPath(), $"ecommerce-{Guid.NewGuid():N}.db");
+        var keyRingPath = Path.Combine(Path.GetTempPath(), $"ecommerce-keys-{Guid.NewGuid():N}");
         var productId = Guid.Empty;
         try
         {
-            using (var firstHost = TestApiFactory.Create(databasePath, deleteOnDispose: false))
+            using (var firstHost = TestApiFactory.Create(keyRingPath))
             {
                 var client = firstHost.CreateClient();
                 client.DefaultRequestHeaders.Add("X-Api-Key", "demo-api-key-12345");
@@ -309,7 +266,7 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
                 productId = payload.GetProperty("items")[0].GetProperty("productId").GetGuid();
             }
 
-            using (var restartedHost = TestApiFactory.Create(databasePath, deleteOnDispose: false))
+            using (var restartedHost = TestApiFactory.Create(keyRingPath))
             {
                 var client = restartedHost.CreateClient();
                 client.DefaultRequestHeaders.Add("X-Api-Key", "demo-api-key-12345");
@@ -322,45 +279,8 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
         }
         finally
         {
-            if (File.Exists(databasePath)) File.Delete(databasePath);
-            if (File.Exists($"{databasePath}-shm")) File.Delete($"{databasePath}-shm");
-            if (File.Exists($"{databasePath}-wal")) File.Delete($"{databasePath}-wal");
-            if (Directory.Exists($"{databasePath}.keys")) Directory.Delete($"{databasePath}.keys", recursive: true);
+            if (Directory.Exists(keyRingPath)) Directory.Delete(keyRingPath, recursive: true);
         }
-    }
-
-    private static string CreateTotp(string secret)
-    {
-        var key = DecodeBase32(secret);
-        var counter = new byte[sizeof(long)];
-        BinaryPrimitives.WriteInt64BigEndian(counter, DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 30);
-        var digest = HMACSHA1.HashData(key, counter);
-        var offset = digest[^1] & 0x0f;
-        var value = ((digest[offset] & 0x7f) << 24)
-            | ((digest[offset + 1] & 0xff) << 16)
-            | ((digest[offset + 2] & 0xff) << 8)
-            | (digest[offset + 3] & 0xff);
-        return (value % 1_000_000).ToString("D6");
-    }
-
-    private static byte[] DecodeBase32(string value)
-    {
-        const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-        var output = new List<byte>();
-        var buffer = 0;
-        var bits = 0;
-        foreach (var character in value)
-        {
-            buffer = (buffer << 5) | alphabet.IndexOf(character);
-            bits += 5;
-            if (bits >= 8)
-            {
-                output.Add((byte)(buffer >> (bits - 8)));
-                bits -= 8;
-            }
-        }
-
-        return output.ToArray();
     }
 
     // Defines only the fields needed to verify the paginated product contract.
@@ -402,16 +322,6 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
         public decimal GrandTotal { get; set; }
     }
 
-    private sealed class MfaSetupPayload
-    {
-        public string Secret { get; set; } = string.Empty;
-    }
-
-    private sealed class MfaEnabledPayload
-    {
-        public List<string> RecoveryCodes { get; set; } = [];
-    }
-
     private sealed class NotificationListPayload
     {
         public List<NotificationPayload> Items { get; set; } = [];
@@ -427,22 +337,18 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
 
 public sealed class TestApiFactory : WebApplicationFactory<Program>
 {
-    private readonly string _databasePath;
-    private readonly bool _deleteOnDispose;
+    private readonly string _keyRingPath;
 
-    public TestApiFactory() : this(Path.Combine(Path.GetTempPath(), $"ecommerce-tests-{Guid.NewGuid():N}.db"), deleteOnDispose: true)
+    public TestApiFactory() : this(Path.Combine(Path.GetTempPath(), $"ecommerce-keys-{Guid.NewGuid():N}"))
     {
     }
 
-    private TestApiFactory(string databasePath, bool deleteOnDispose)
+    private TestApiFactory(string keyRingPath)
     {
-        SQLitePCL.Batteries_V2.Init();
-        _databasePath = databasePath;
-        _deleteOnDispose = deleteOnDispose;
+        _keyRingPath = keyRingPath;
     }
 
-    public static TestApiFactory Create(string databasePath, bool deleteOnDispose) =>
-        new(databasePath, deleteOnDispose);
+    public static TestApiFactory Create(string keyRingPath) => new(keyRingPath);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -450,27 +356,23 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:EcommerceDb"] = "Host=localhost;Database=ecommerce_test;Username=postgres",
-                ["DataProtection:KeyRingPath"] = $"{_databasePath}.keys",
-                ["Database:EnsureCreated"] = "true"
+                ["DataProtection:KeyRingPath"] = _keyRingPath
             });
-        });
-        builder.ConfigureServices(services =>
-        {
-            services.RemoveAll<AppDbContext>();
-            services.RemoveAll<DbContextOptions<AppDbContext>>();
-            services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlite($"Data Source={_databasePath};Pooling=False"));
         });
     }
 
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (!_deleteOnDispose) return;
-        if (File.Exists(_databasePath)) File.Delete(_databasePath);
-        if (File.Exists($"{_databasePath}-shm")) File.Delete($"{_databasePath}-shm");
-        if (File.Exists($"{_databasePath}-wal")) File.Delete($"{_databasePath}-wal");
-        if (Directory.Exists($"{_databasePath}.keys")) Directory.Delete($"{_databasePath}.keys", recursive: true);
+        if (Directory.Exists(_keyRingPath)) Directory.Delete(_keyRingPath, recursive: true);
+    }
+}
+
+public sealed class PostgreSqlFactAttribute : FactAttribute
+{
+    public PostgreSqlFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ConnectionStrings__EcommerceDb")))
+            Skip = "Set ConnectionStrings__EcommerceDb to run tests that require PostgreSQL.";
     }
 }

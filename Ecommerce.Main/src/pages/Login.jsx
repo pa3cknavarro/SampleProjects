@@ -12,8 +12,6 @@ export default function Login() {
   const { checkUserAuth } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [twoFactorCode, setTwoFactorCode] = useState("");
-  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const returnTo = safeReturnTo();
@@ -23,12 +21,11 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await ecommerceApi.auth.login({ username, password, twoFactorCode: twoFactorCode || undefined });
+      await ecommerceApi.auth.login({ username, password });
       await checkUserAuth();
       window.location.href = returnTo === "/" ? "/store" : returnTo;
     } catch (err) {
       setError(err.apiError?.detail || err.message || "Could not sign in");
-      if (err.apiError?.requiresTwoFactor) setRequiresTwoFactor(true);
       setLoading(false);
     }
   };
@@ -71,22 +68,6 @@ export default function Login() {
             />
           </div>
         </div>
-        {requiresTwoFactor && (
-          <div className="space-y-2">
-            <Label htmlFor="two-factor-code">Authenticator or recovery code</Label>
-            <Input
-              id="two-factor-code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={32}
-              value={twoFactorCode}
-              onChange={(e) => setTwoFactorCode(e.target.value.replace(/[^a-f0-9]/gi, "").slice(0, 32).toUpperCase())}
-              className="h-12 tracking-[0.3em]"
-              required
-            />
-          </div>
-        )}
         <Button type="submit" className="h-12 w-full font-medium" disabled={loading}>
           {loading ? (
             <>
