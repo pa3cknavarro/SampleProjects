@@ -43,21 +43,21 @@ public class CartItem
     [ForeignKey(nameof(UserId))]
     // Deleting a user does not cascade-delete cart lines.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related user. Placeholder until EF loads it.
-    public User User { get; set; } = new();
+    // The required related user assigned by EF Core.
+    public User User { get; set; } = null!;
 
     // Product navigation is bound to ProductId.
     [ForeignKey(nameof(ProductId))]
     // Deleting a product does not cascade-delete cart lines.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related product. Placeholder until EF loads it.
-    public Product Product { get; set; } = new();
+    // The required related product assigned by EF Core.
+    public Product Product { get; set; } = null!;
 
     // Unit navigation is bound to UomId.
     [ForeignKey(nameof(UomId))]
     // Deleting a unit does not cascade-delete cart lines.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related unit of measure. Placeholder until EF loads it.
-    public UnitOfMeasure Uom { get; set; } = new();
+    // The required related unit assigned by EF Core.
+    public UnitOfMeasure Uom { get; set; } = null!;
 }
 // Ends the cart-line entity.

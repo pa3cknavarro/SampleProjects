@@ -64,25 +64,25 @@ public class Customer
     [ForeignKey(nameof(CustomerClassId))]
     // Deleting a class does not cascade to customers.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related class. Placeholder until EF loads it.
-    public CustomerClass CustomerClass { get; set; } = new();
+    // The required related class assigned by EF Core.
+    public CustomerClass CustomerClass { get; set; } = null!;
 
     // Province navigation uses ProvinceId.
     [ForeignKey(nameof(ProvinceId))]
     // Deleting a province does not cascade to customers.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related province. Placeholder until EF loads it.
-    public Province Province { get; set; } = new();
+    // The optional province navigation; the province foreign key is nullable.
+    public Province? Province { get; set; }
 
     // City is not given an explicit ForeignKey attribute. EF matches it by
     // convention to CityId. Delete is still NoAction.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related city. Placeholder until EF loads it.
-    public City City { get; set; } = new();
+    // The optional city navigation; the city foreign key is nullable.
+    public City? City { get; set; }
 
     // Barangay is also matched by convention to BarangayId. Delete is NoAction.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related barangay. Placeholder until EF loads it.
-    public Barangay Barangay { get; set; } = new();
+    // The optional barangay navigation; the barangay foreign key is nullable.
+    public Barangay? Barangay { get; set; }
 }
 // Ends the customer entity.
