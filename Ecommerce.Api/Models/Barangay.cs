@@ -65,14 +65,14 @@ public class Barangay
     [ForeignKey(nameof(ProvinceId))]
     // Deleting the province does not cascade to barangays.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related province. Placeholder until EF loads it.
-    public Province Province { get; set; } = new();
+    // The required related province assigned by EF Core.
+    public Province Province { get; set; } = null!;
 
     // City navigation uses CityId. ProvinceId is a separate foreign key above.
     [ForeignKey(nameof(CityId))]
     // Deleting the city does not cascade to barangays.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related city. Placeholder until EF loads it.
-    public City City { get; set; } = new();
+    // The required related city assigned by EF Core.
+    public City City { get; set; } = null!;
 }
 // Ends the barangay entity.

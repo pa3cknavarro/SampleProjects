@@ -63,9 +63,8 @@ public class City
     // NoAction tells the database not to cascade-delete cities when a province is deleted.
     // The application must remove or reassign children first.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Reference navigation. new() constructs a blank Province so the property is non-null
-    // before EF replaces it with the tracked parent.
-    public Province Province { get; set; } = new();
+    // The required related province assigned by EF Core.
+    public Province Province { get; set; } = null!;
 
     // Children are not cascade-deleted when this city is removed.
     [DeleteBehavior(DeleteBehavior.NoAction)]

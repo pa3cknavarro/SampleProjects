@@ -46,8 +46,8 @@ public class Product
     [ForeignKey(nameof(CategoryId))]
     // Deleting a category does not cascade to products.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Parent category. new() supplies a non-null placeholder until EF loads the real category.
-    public Category Category { get; set; } = new();
+    // The required parent category assigned by EF Core.
+    public Category Category { get; set; } = null!;
 
     // Prices for this product, one per unit of measure. Empty list by default.
     public List<UnitPrice> UnitPrices { get; set; } = [];

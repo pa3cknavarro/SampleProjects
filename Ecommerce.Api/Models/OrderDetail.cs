@@ -49,22 +49,22 @@ public class OrderDetail
     [ForeignKey(nameof(ProductId))]
     // Deleting a product does not cascade to order lines.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related product. Placeholder until EF loads it.
-    public Product Product { get; set; } = new();
+    // The required related product assigned by EF Core.
+    public Product Product { get; set; } = null!;
 
     // Unit navigation uses UomId.
     [ForeignKey(nameof(UomId))]
     // Deleting a unit does not cascade to order lines.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related unit. Placeholder until EF loads it.
-    public UnitOfMeasure UnitOfMeasure { get; set; } = new();
+    // The required related unit assigned by EF Core.
+    public UnitOfMeasure UnitOfMeasure { get; set; } = null!;
 
     // Order navigation uses OrderId.
     [ForeignKey(nameof(OrderId))]
     // Deleting an order does not cascade to lines because of NoAction.
     // The application must delete lines explicitly.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Parent order. Placeholder until EF loads it.
-    public Order Order { get; set; } = new();
+    // The required parent order assigned by EF Core.
+    public Order Order { get; set; } = null!;
 }
 // Ends the order-line entity.

@@ -32,14 +32,14 @@ public class AreaAvailable
     [ForeignKey(nameof(ProductId))]
     // Removing a product does not automatically delete these rows.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // The related product. Placeholder instance until EF assigns the tracked one.
-    public Product Product { get; set; } = new();
+    // The required related product assigned by EF Core.
+    public Product Product { get; set; } = null!;
 
     // Navigation uses ProvinceId as its foreign key.
     [ForeignKey(nameof(ProvinceId))]
     // Removing a province does not automatically delete these rows.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // The related province. Placeholder instance until EF assigns the tracked one.
-    public Province Province { get; set; } = new();
+    // The required related province assigned by EF Core.
+    public Province Province { get; set; } = null!;
 }
 // Ends the availability entity.

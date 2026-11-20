@@ -66,8 +66,8 @@ public class Order
     [ForeignKey(nameof(CustomerId))]
     // Deleting a customer does not cascade-delete orders.
     [DeleteBehavior(DeleteBehavior.NoAction)]
-    // Related customer. Placeholder until EF loads it.
-    public Customer Customer { get; set; } = new();
+    // The required related customer assigned by EF Core.
+    public Customer Customer { get; set; } = null!;
 
     // Line items. The property name is singular even though the type is a list.
     // [] allocates an empty list so lines can be added without a null check.
